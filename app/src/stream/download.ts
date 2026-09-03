@@ -5,7 +5,6 @@ import { getNumericConfigOption } from '../config/access'
 import { log } from '../utils/log'
 import archiver, { Archiver } from 'archiver'
 import { sanitize } from '../utils/sanitize'
-import { Readable } from 'stream'
 import { pipeline } from 'stream/promises'
 import { promises as fs, createWriteStream } from 'fs'
 import { tmpdir } from 'os'
@@ -15,6 +14,7 @@ import { title } from '../share'
 import { getFilename } from '../gallery/filename'
 import { createLimiter } from '../utils/limiter'
 import { createIdleTimeoutStream } from '../utils/idleTimeoutStream'
+import { readableFromWeb } from '../utils/webStream'
 
 const STAGING_DIR_PREFIX = 'ipp-zip-'
 
@@ -341,12 +341,7 @@ async function fetchHeadersWithRetry (
  */
 async function streamBodyToTempFile (response: globalThis.Response, tempfile: string, idleMs: number): Promise<{ ok: true } | { failure: unknown }> {
   if (!response.body) return { failure: new Error('Upstream response has no body') }
-  // `response.body` is the global/undici ReadableStream<Uint8Array>;
-  // Readable.fromWeb expects node:stream/web's ReadableStream<any>. The
-  // two are structurally compatible at runtime but TS sees them as
-  // distinct nominal types, so a cast is needed.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const body = Readable.fromWeb(response.body as any)
+  const body = readableFromWeb(response.body)
   try {
     await pipeline(body, createIdleTimeoutStream(idleMs), createWriteStream(tempfile))
     return { ok: true }

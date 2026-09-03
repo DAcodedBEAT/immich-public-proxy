@@ -48,6 +48,7 @@ export default defineConfig({
         text: 'Deployment',
         items: [
           { text: 'Single domain with Immich', link: '/running-on-single-domain' },
+          { text: 'Redirect root domain to a share', link: '/redirect-root-to-share' },
           { text: 'Securing Immich with mTLS', link: '/securing-immich-with-mtls' },
           { text: 'Install with Kubernetes', link: '/kubernetes' }
         ]
