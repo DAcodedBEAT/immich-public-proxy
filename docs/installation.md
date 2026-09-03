@@ -32,7 +32,7 @@ you.
 
 > [!WARNING]
 > If you're using Cloudflare, please make sure to set your `/share/video/*` path to Bypass Cache, otherwise you may
-> run into video playback issues. See [Troubleshooting](#troubleshooting) for more information.
+> run into video playback issues. See [Troubleshooting](/troubleshooting) for more information.
 
 ### Running alongside Immich on a single domain
 
