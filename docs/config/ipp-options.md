@@ -75,12 +75,6 @@ The bulk-zip and per-asset buttons can be toggled independently once downloads a
 >
 > To guarantee full-quality downloads of everything, leave the share's download permission on in Immich.
 
-## `downloadFromImmichConcurrencyLimit`
-
-**Type:** `int` · **Default:** `20`
-
-Maximum number of assets IPP will fetch from your Immich server in parallel when building a "download all" zip. Lower this if your Immich server is slow or you see download timeouts on large albums; raise it for faster downloads if your server can handle the load.
-
 ## `allowSlugLinks`
 
 **Type:** `bool`
