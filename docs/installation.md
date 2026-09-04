@@ -31,8 +31,8 @@ Now whenever you share an image or gallery through Immich, it will automatically
 you.
 
 > [!WARNING]
-> If you're using Cloudflare, please make sure to set your `/share/video/*` and `/share/*/download` paths to Bypass
-> Cache, otherwise you may run into video playback issues and failed zip downloads. See
+> If you're using Cloudflare, please make sure to set your `/share/video/*`, `/share/*/download` and `/s/*/download`
+> paths to Bypass Cache, otherwise you may run into video playback issues and failed zip downloads. See
 > [Troubleshooting](/troubleshooting) for more information.
 
 Those two variables are all most people need. The port and the config file location are covered under
