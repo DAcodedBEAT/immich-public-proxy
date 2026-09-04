@@ -96,14 +96,17 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     return
   }
 
-  if (attachment && asset.originalFileName) {
-    // Playback downloads serve Immich's transcode, so the filename extension
-    // must follow the response's content-type, not the original file's.
-    const playbackMime = useVideoPlayback
-      ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
-      : undefined
-    const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
+  if (attachment) {
+    res.setHeader('X-Accel-Buffering', 'no')
+    if (asset.originalFileName) {
+      // Playback downloads serve Immich's transcode, so the filename extension
+      // must follow the response's content-type, not the original file's.
+      const playbackMime = useVideoPlayback
+        ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
+        : undefined
+      const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
+    }
   }
   headerList.forEach(header => {
     const value = data.headers.get(header)

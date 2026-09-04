@@ -118,6 +118,7 @@ describe('assetBuffer streaming', () => {
     expect(res.headers['content-type']).toBe('image/jpeg')
     expect(res.headers['content-length']).toBe(String(4 * CHUNK))
     expect(res.headers['content-disposition']).toContain('a1.jpg')
+    expect(res.headers['x-accel-buffering']).toBe('no')
   })
 
   it('applies backpressure so upstream is read no faster than the visitor drains it', async () => {
