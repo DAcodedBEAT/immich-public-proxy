@@ -19,7 +19,9 @@ Serve full-resolution images both when zooming in the lightbox and when download
 
 **Type:** `object`
 
-Change the headers sent with your web responses. The default is a 30-day `Cache-Control` and a permissive CORS header:
+Change the headers sent with your web responses. The default is a 30-day `Cache-Control` and a permissive CORS header.
+These apply to photos, videos and static files. The "download all" zip is always sent with `Cache-Control: no-store`
+to prevent CDN issues, and the gallery page uses its own [`gallery.cacheTime`](/config/gallery#cachetime).
 
 ```json
 {

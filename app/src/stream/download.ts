@@ -136,6 +136,7 @@ function startZipResponse (res: Response, share: SharedLink, archive: Archiver) 
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
   // Hint to intermediate proxies (Nginx, etc.) not to buffer this response.
   res.setHeader('X-Accel-Buffering', 'no')
+  res.setHeader('Cache-Control', 'no-store')
   archive.pipe(res)
 }
 

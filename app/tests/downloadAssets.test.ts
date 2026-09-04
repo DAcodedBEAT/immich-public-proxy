@@ -161,6 +161,9 @@ describe('downloadAssets', () => {
     await downloadAssets(asResponse(res), share, [makeAsset('a1'), makeAsset('a2')])
     expect(res.writableFinished).toBe(true)
     expect(res.headers['Content-Type']).toBe('application/zip')
+    // A CDN must never store the zip; Cloudflare's cache fill aborts large
+    // downloads partway through otherwise #94
+    expect(res.headers['Cache-Control']).toBe('no-store')
     const zip = res.output
     expect(countOf(zip, 'PK\x03\x04')).toBe(2) // local file headers
     expect(countOf(zip, 'PK\x05\x06')).toBe(1) // end of central directory

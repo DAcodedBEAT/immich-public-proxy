@@ -8,6 +8,16 @@ set to bypass cache. I ran into this issue myself, and found
 
 <a href="/cloudflare-video-cache.webp"><img src="/cloudflare-video-cache.webp" style="width:70%" alt="Cloudflare cache bypass rule for video paths"></a>
 
+## "Download all" fails partway through
+
+If you use Cloudflare with a "cache everything" rule and large zip downloads stop with a browser error after a few
+seconds, add a cache rule that bypasses cache for `/share/*/download`, the same as for `/share/video/*` above. From
+v3.3.0 the zip is streamed as it is fetched from Immich, and Cloudflare's cache cuts those downloads short.
+
+Versions after v3.3.0 send the zip with `Cache-Control: no-store`, which is enough on its own if your cache rule's Edge
+TTL is set to respect the origin. If the rule overrides the Edge TTL, Cloudflare ignores that header and you need the
+bypass rule.
+
 I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.
 
 ## Link previews show `http://` or a private IP
