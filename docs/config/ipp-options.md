@@ -1,6 +1,6 @@
-# IPP options
+# General options
 
-Top-level options under `ipp.*`.
+Top-level options under `ipp.*` that don't belong to the [Gallery](/config/gallery), [Lightbox](/config/lightbox) or [Metadata](/config/metadata) groups.
 
 ## Example
 
@@ -19,7 +19,18 @@ Serve full-resolution images both when zooming in the lightbox and when download
 
 **Type:** `object`
 
-Change the headers sent with your web responses. By default there is `cache-control` and CORS added.
+Change the headers sent with your web responses. The default is a 30-day `Cache-Control` and a permissive CORS header:
+
+```json
+{
+  "ipp": {
+    "responseHeaders": {
+      "Cache-Control": "public, max-age=2592000",
+      "Access-Control-Allow-Origin": "*"
+    }
+  }
+}
+```
 
 ## `maxDownloadQuality`
 
@@ -77,13 +88,13 @@ The bulk-zip and per-asset buttons can be toggled independently once downloads a
 
 ## `allowSlugLinks`
 
-**Type:** `bool`
+**Type:** `bool` · **Default:** `true`
 
-Enable/disable the custom URL links.
+Serve shared links that have a custom URL in Immich at `/s/<slug>` as well as `/share/<key>`. Set to `false` to return a 404 for slug links, so that only the key form works.
 
 ## `showHomePage`
 
-**Type:** `bool`
+**Type:** `bool` · **Default:** `true`
 
 Set to `false` to remove the IPP shield page at `/` and at `/share`.
 
