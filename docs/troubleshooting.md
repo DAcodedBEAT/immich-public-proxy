@@ -19,8 +19,6 @@ Versions after v3.3.0 send the zip with `Cache-Control: no-store`, which is enou
 TTL is set to respect the origin. If the rule overrides the Edge TTL, Cloudflare ignores that header and you need the
 bypass rule.
 
-I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.
-
 ## Link previews show `http://` or a private IP
 
 The gallery itself uses relative URLs, so it works behind any reverse proxy. The one place IPP needs a fully qualified
@@ -91,3 +89,7 @@ your resolver to return an empty `NOERROR` (NODATA) rather than `NXDOMAIN` for t
 
 See issues [#203](https://github.com/alangrainger/immich-public-proxy/issues/203) and
 [#263](https://github.com/alangrainger/immich-public-proxy/issues/263) for the full investigation.
+
+---
+
+I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.
