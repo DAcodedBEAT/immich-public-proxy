@@ -12,7 +12,7 @@ vi.mock('../src/config/access', () => ({
   getConfigOption: (_path: string, fallback?: unknown) => fallback
 }))
 
-function videoAsset (originalFileName: string, originalMimeType = 'video/x-msvideo'): Asset {
+function videoAsset(originalFileName: string, originalMimeType = 'video/x-msvideo'): Asset {
   return {
     id: 'asset-id',
     key: 'k',
@@ -27,15 +27,21 @@ function videoAsset (originalFileName: string, originalMimeType = 'video/x-msvid
 describe('getFilename servedMime override (playback-fallback downloads)', () => {
   it('swaps the extension to match the transcoded bytes', () => {
     expect(getFilename(videoAsset('clip.avi'), ImageSize.original, 'video/mp4')).toBe('clip.mp4')
-    expect(getFilename(videoAsset('holiday.MOV', 'video/quicktime'), ImageSize.original, 'video/mp4')).toBe('holiday.mp4')
+    expect(
+      getFilename(videoAsset('holiday.MOV', 'video/quicktime'), ImageSize.original, 'video/mp4')
+    ).toBe('holiday.mp4')
   })
 
   it('keeps the name unchanged when the served mime matches the original', () => {
-    expect(getFilename(videoAsset('clip.mp4', 'video/mp4'), ImageSize.original, 'video/mp4')).toBe('clip.mp4')
+    expect(getFilename(videoAsset('clip.mp4', 'video/mp4'), ImageSize.original, 'video/mp4')).toBe(
+      'clip.mp4'
+    )
   })
 
   it('ignores an unrecognised content-type instead of stripping the extension', () => {
-    expect(getFilename(videoAsset('clip.avi'), ImageSize.original, 'application/octet-stream')).toBe('clip.avi')
+    expect(
+      getFilename(videoAsset('clip.avi'), ImageSize.original, 'application/octet-stream')
+    ).toBe('clip.avi')
     expect(getFilename(videoAsset('clip.avi'), ImageSize.original, undefined)).toBe('clip.avi')
   })
 

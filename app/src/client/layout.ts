@@ -34,8 +34,8 @@ export interface LayoutResult {
  * justified-rows algorithm. When grouping by date is enabled, items are
  * bucketed by YYYY-MM and a header is reserved before each group.
  */
-export function computeLayout (containerW: number): LayoutResult {
-  const tileLayout: LayoutEntry[] = new Array(state.items.length)
+export function computeLayout(containerW: number): LayoutResult {
+  const tileLayout: LayoutEntry[] = Array.from({ length: state.items.length })
   const newHeaders: HeaderEntry[] = []
   const groups: GroupSpec[] = state.groupByDate
     ? groupItemsByDate(state.groupByDate)
@@ -60,13 +60,13 @@ export function computeLayout (containerW: number): LayoutResult {
   }
 }
 
-function itemIndices (): number[] {
-  const out = new Array(state.items.length)
+function itemIndices(): number[] {
+  const out = Array.from<number>({ length: state.items.length })
   for (let i = 0; i < state.items.length; i++) out[i] = i
   return out
 }
 
-function groupItemsByDate (mode: GroupByDateMode): GroupSpec[] {
+function groupItemsByDate(mode: GroupByDateMode): GroupSpec[] {
   // Bucket key length: YYYY-MM (month) or YYYY-MM-DD (day). We slice the local
   // timestamp, so no timezone maths is needed - the string already reads as
   // the photographer's wall-clock (matching Immich's own timeline grouping).
@@ -91,7 +91,7 @@ function groupItemsByDate (mode: GroupByDateMode): GroupSpec[] {
   return Array.from(map.values())
 }
 
-function dateLabel (key: string, mode: GroupByDateMode): string {
+function dateLabel(key: string, mode: GroupByDateMode): string {
   if (key === 'undated') return 'Undated'
   const parts = key.split('-')
   const y = Number(parts[0])
@@ -101,10 +101,12 @@ function dateLabel (key: string, mode: GroupByDateMode): string {
   // Intl.DateTimeFormat picks up the browser's locale; UTC timeZone keeps the
   // displayed date consistent with the bucket key (which is already local).
   // Day headers use Immich's timeline format ("Sat, 18 Oct 2025").
-  return new Intl.DateTimeFormat(undefined, mode === 'day'
-    ? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
-    : { month: 'long', year: 'numeric', timeZone: 'UTC' }
-  ).format(new Date(Date.UTC(y, m - 1, mode === 'day' ? (d || 1) : 1)))
+  return new Intl.DateTimeFormat(
+    undefined,
+    mode === 'day'
+      ? { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
+      : { month: 'long', year: 'numeric', timeZone: 'UTC' }
+  ).format(new Date(Date.UTC(y, m - 1, mode === 'day' ? d || 1 : 1)))
 }
 
 /**
@@ -113,7 +115,12 @@ function dateLabel (key: string, mode: GroupByDateMode): string {
  *
  * @returns The y position past the last tile in this group (no trailing gap).
  */
-function layoutSquareGroup (containerW: number, indices: number[], startY: number, tileLayout: LayoutEntry[]): number {
+function layoutSquareGroup(
+  containerW: number,
+  indices: number[],
+  startY: number,
+  tileLayout: LayoutEntry[]
+): number {
   const tileSize = Math.floor((containerW - (MOBILE_COLS - 1) * GAP) / MOBILE_COLS)
   let col = 0
   let x = 0
@@ -144,19 +151,26 @@ function layoutSquareGroup (containerW: number, indices: number[], startY: numbe
  *
  * @returns The y position past the last tile in this group (no trailing gap).
  */
-function layoutJustifiedGroup (containerW: number, indices: number[], startY: number, tileLayout: LayoutEntry[]): number {
-  let rowItems: Array<{ idx: number, aspect: number }> = []
+function layoutJustifiedGroup(
+  containerW: number,
+  indices: number[],
+  startY: number,
+  tileLayout: LayoutEntry[]
+): number {
+  let rowItems: Array<{ idx: number; aspect: number }> = []
   let aspectSum = 0
   let y = startY
 
-  const applyRow = (rowItems: Array<{ idx: number, aspect: number }>, height: number, isLastRow: boolean) => {
+  const applyRow = (
+    rowItems: Array<{ idx: number; aspect: number }>,
+    height: number,
+    isLastRow: boolean
+  ) => {
     const intHeight = Math.floor(height)
     let x = 0
     rowItems.forEach(({ idx, aspect }, i) => {
       const isFinalInRow = i === rowItems.length - 1
-      const w = (!isLastRow && isFinalInRow)
-        ? containerW - x
-        : Math.floor(aspect * height)
+      const w = !isLastRow && isFinalInRow ? containerW - x : Math.floor(aspect * height)
       tileLayout[idx] = { index: idx, left: x, top: y, width: w, height: intHeight }
       x += w + GAP
     })

@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "vitest", "promise", "node"],
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": ["dist/**", "public/**"],
+  "rules": {
+    "no-unused-vars": ["error", { "args": "none", "caughtErrors": "none" }],
+    // Standard `.catch(next)` pattern for handing an async route's rejection
+    // to Express's own error middleware - the correct, idiomatic way to
+    // bridge a promise into Express, not the callback/promise mixing this
+    // rule is meant to catch.
+    "promise/no-callback-in-promise": "off",
+    // Low-value here: message-less `.rejects.toThrow()` is used throughout
+    // to assert "this failed", where the failure mode itself is already
+    // clear from the test's name/context.
+    "vitest/require-to-throw-message": "off",
+    // Low-value here: the mocked functions' real signatures are already
+    // type-checked at their call sites elsewhere; adding type parameters to
+    // every vi.fn() wouldn't catch anything real.
+    "vitest/require-mock-type-parameters": "off"
+  },
+  "env": {
+    "builtin": true
+  }
+}

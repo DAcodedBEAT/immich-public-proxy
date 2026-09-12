@@ -34,7 +34,7 @@ const SHIMS: Shim[] = [
  * Apply every registered legacy-config shim to `config` in place.
  * Called from `loadConfig()` after reading the file or env JSON.
  */
-export function applyMigrations (config: Config): void {
+export function applyMigrations(config: Config): void {
   for (const shim of SHIMS) shim.apply(config)
 }
 
@@ -44,7 +44,7 @@ export function applyMigrations (config: Config): void {
  * `lightGallery.download`, and `lightGallery.mobileSettings.controls`
  * onto `ipp.lightbox.*`.
  */
-function applyLightGalleryShim (config: Config): void {
+function applyLightGalleryShim(config: Config): void {
   if (!config.lightGallery || typeof config.lightGallery !== 'object') return
 
   const lg = config.lightGallery as Record<string, unknown>
@@ -64,7 +64,7 @@ function applyLightGalleryShim (config: Config): void {
 
   console.log(
     '[IPP] The `lightGallery` config section is deprecated; relevant keys ' +
-    'have been mapped to `ipp.lightbox.*`. See README for the current options.'
+      'have been mapped to `ipp.lightbox.*`. See README for the current options.'
   )
 }
 
@@ -73,7 +73,7 @@ function applyLightGalleryShim (config: Config): void {
  * by the `preview | fullsize | original` tier. Maps `true -> 'original'`,
  * `false -> 'preview'`, only when `maxDownloadQuality` isn't already set.
  */
-function applyDownloadQualityShim (config: Config): void {
+function applyDownloadQualityShim(config: Config): void {
   const ipp = (config.ipp || (config.ipp = {})) as Record<string, unknown>
   if (typeof ipp.downloadOriginalPhoto !== 'boolean') return
   if (ipp.maxDownloadQuality !== undefined) return
@@ -82,8 +82,9 @@ function applyDownloadQualityShim (config: Config): void {
 
   console.log(
     '[IPP] `ipp.downloadOriginalPhoto` is deprecated; it has been mapped to ' +
-    '`ipp.maxDownloadQuality` (' + JSON.stringify(ipp.maxDownloadQuality) +
-    '). See README for the new `maxDownloadQuality` / `maxZoomQuality` options.'
+      '`ipp.maxDownloadQuality` (' +
+      JSON.stringify(ipp.maxDownloadQuality) +
+      '). See README for the new `maxDownloadQuality` / `maxZoomQuality` options.'
   )
 }
 
@@ -91,7 +92,7 @@ function applyDownloadQualityShim (config: Config): void {
  * SHIM: allowDownloadAll -> allowDownload (rename, same 0/1/2 values). Maps the
  * legacy key forward only when the new one hasn't been set.
  */
-function applyAllowDownloadRenameShim (config: Config): void {
+function applyAllowDownloadRenameShim(config: Config): void {
   const ipp = (config.ipp || (config.ipp = {})) as Record<string, unknown>
   if (ipp.allowDownloadAll === undefined) return
   if (ipp.allowDownload !== undefined) return
@@ -100,7 +101,7 @@ function applyAllowDownloadRenameShim (config: Config): void {
 
   console.log(
     '[IPP] `ipp.allowDownloadAll` has been renamed to `ipp.allowDownload` ' +
-    '(same `0` / `1` / `2` values). Please update your config.json. See README.'
+      '(same `0` / `1` / `2` values). Please update your config.json. See README.'
   )
 }
 
@@ -110,7 +111,7 @@ function applyAllowDownloadRenameShim (config: Config): void {
  * Maps legacy keys forward, only filling in fields the user hasn't
  * already set on the new path.
  */
-function applyTopLevelGalleryShim (config: Config): void {
+function applyTopLevelGalleryShim(config: Config): void {
   const ipp = (config.ipp || (config.ipp = {})) as Record<string, unknown>
   const galleryKeyMigrations: Array<[string, string]> = [
     ['singleImageGallery', 'singleImage'],
@@ -131,8 +132,8 @@ function applyTopLevelGalleryShim (config: Config): void {
 
   console.log(
     '[IPP] Top-level gallery keys (singleImageGallery, singleItemAutoOpen, ' +
-    'showGalleryTitle, showGalleryDescription, groupGalleryByDate) are ' +
-    'deprecated; please move them under `ipp.gallery.*`. See README.'
+      'showGalleryTitle, showGalleryDescription, groupGalleryByDate) are ' +
+      'deprecated; please move them under `ipp.gallery.*`. See README.'
   )
 }
 
@@ -144,7 +145,7 @@ function applyTopLevelGalleryShim (config: Config): void {
  * migrated to `{ caption: <bool>, sidebar: <bool> }` so existing configs
  * continue to render description in both places.
  */
-function applyDescriptionSplitShim (config: Config): void {
+function applyDescriptionSplitShim(config: Config): void {
   const ipp = (config.ipp || (config.ipp = {})) as Record<string, unknown>
   const showMetadata = ipp.showMetadata as Record<string, unknown> | undefined
   if (!showMetadata) return
@@ -155,8 +156,8 @@ function applyDescriptionSplitShim (config: Config): void {
 
   console.log(
     '[IPP] `ipp.showMetadata.description` as a boolean is deprecated; use ' +
-    '`{ "caption": <bool>, "sidebar": <bool> }` to control each surface ' +
-    'independently. See README.'
+      '`{ "caption": <bool>, "sidebar": <bool> }` to control each surface ' +
+      'independently. See README.'
   )
 }
 
@@ -191,14 +192,22 @@ function applyDescriptionSplitShim (config: Config): void {
 // won't auto-appear for legacy `enabled: true` users via this shim - they
 // should opt in explicitly.
 const LEGACY_EXIF_FIELDS = [
-  'dateTimeOriginal', 'fileName', 'dimensions', 'fileSize',
-  'make', 'model', 'lensModel', 'exposureTime', 'iso',
-  'fNumber', 'focalLength'
+  'dateTimeOriginal',
+  'fileName',
+  'dimensions',
+  'fileSize',
+  'make',
+  'model',
+  'lensModel',
+  'exposureTime',
+  'iso',
+  'fNumber',
+  'focalLength'
 ]
 
 const LEGACY_LOCATION_FIELDS = ['city', 'state', 'country', 'gps']
 
-function applyMetadataEnabledShim (config: Config): void {
+function applyMetadataEnabledShim(config: Config): void {
   const ipp = (config.ipp || (config.ipp = {})) as Record<string, unknown>
   const showMetadata = ipp.showMetadata as Record<string, unknown> | undefined
   if (!showMetadata) return
@@ -232,10 +241,10 @@ function applyMetadataEnabledShim (config: Config): void {
   if (migrated) {
     console.log(
       '[IPP] `ipp.showMetadata.exif.enabled` / `.location.enabled` are ' +
-      'deprecated and have been removed. Per-field flags are now the ' +
-      'only gate (all default `false`). Your legacy config has been ' +
-      'rewritten in memory to preserve current behaviour; please update ' +
-      'your `config.json` to the explicit per-field form. See README.'
+        'deprecated and have been removed. Per-field flags are now the ' +
+        'only gate (all default `false`). Your legacy config has been ' +
+        'rewritten in memory to preserve current behaviour; please update ' +
+        'your `config.json` to the explicit per-field form. See README.'
     )
   }
 }

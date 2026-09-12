@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  // public/ is served static assets: vendored third-party libraries
+  // (PhotoSwipe, thumbhash) plus compiled client JS and CSS. None of it is
+  // hand-written source to analyze - it's either not ours to refactor or a
+  // build artifact already covered by analyzing src/client/*.ts directly.
+  "ignorePatterns": ["public/**"],
+  // src/client/init.ts and src/client/upload.ts are real runtime entry
+  // points - loaded by the browser via <script type="module" src="...">
+  // in the rendered gallery HTML, not imported by any other TS module, so
+  // fallow's automatic entry detection can't see them.
+  "entry": ["src/client/init.ts", "src/client/upload.ts"]
+}

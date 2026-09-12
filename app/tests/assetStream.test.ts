@@ -20,7 +20,7 @@ const asset: Asset = {
   originalMimeType: 'image/jpeg'
 }
 
-function makeRequest (method = 'GET'): IncomingShareRequest {
+function makeRequest(method = 'GET'): IncomingShareRequest {
   return { req: { method } as Request, key: 'testkey', range: '' }
 }
 
@@ -34,23 +34,30 @@ class FakeRes extends Writable {
   received = 0
   headers: Record<string, string> = {}
 
-  constructor () {
+  constructor() {
     super({ highWaterMark: 16 * 1024 })
     // Node's http stack handles response stream errors internally; a bare
     // Writable would crash the test process on destroy(err) instead.
-    this.on('error', () => { /* swallowed, like http.ServerResponse */ })
+    this.on('error', () => {
+      /* swallowed, like http.ServerResponse */
+    })
   }
 
-  setHeader (name: string, value: string) { this.headers[name.toLowerCase()] = value; return this }
-  status (_code: number) { return this }
+  setHeader(name: string, value: string) {
+    this.headers[name.toLowerCase()] = value
+    return this
+  }
+  status(_code: number) {
+    return this
+  }
 
-  _write (chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
+  _write(chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
     this.received += chunk.length
     setImmediate(cb)
   }
 }
 
-function asResponse (res: FakeRes): Response {
+function asResponse(res: FakeRes): Response {
   return res as unknown as Response
 }
 
@@ -66,7 +73,7 @@ type Source = {
  * far upstream has been read. Records cancellation and the request signal.
  * `totalBytes` Infinity streams forever until cancelled.
  */
-function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
+function pullFetch(totalBytes: number, source: Source, headersDelayMs = 0) {
   return vi.fn(async (_url: unknown, init?: RequestInit) => {
     const signal = init?.signal as AbortSignal
     source.signals.push(signal)
@@ -84,17 +91,23 @@ function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
       })
     }
     const stream = new ReadableStream<Uint8Array>({
-      start (controller) {
+      start(controller) {
         signal.addEventListener('abort', () => {
-          try { controller.error(abortError()) } catch { /* already closed */ }
+          try {
+            controller.error(abortError())
+          } catch {
+            /* already closed */
+          }
         })
       },
-      pull (controller) {
+      pull(controller) {
         if (source.pulled >= totalBytes) return controller.close()
         controller.enqueue(new Uint8Array(CHUNK))
         source.pulled += CHUNK
       },
-      cancel () { source.cancelled = true }
+      cancel() {
+        source.cancelled = true
+      }
     })
     return new globalThis.Response(stream, {
       status: 200,
@@ -103,7 +116,7 @@ function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
   })
 }
 
-function newSource (): Source {
+function newSource(): Source {
   return { pulled: 0, cancelled: false, signals: [] }
 }
 
@@ -163,7 +176,9 @@ describe('assetBuffer streaming', () => {
     vi.stubGlobal('fetch', pullFetch(Infinity, source, 200))
     const res = new FakeRes()
     setTimeout(() => res.destroy(new Error('client aborted')), 20)
-    await expect(assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original)).resolves.toBeUndefined()
+    await expect(
+      assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original)
+    ).resolves.toBeUndefined()
     expect(source.signals[0].aborted).toBe(true)
     expect(source.pulled).toBe(0)
     expect(res.received).toBe(0)

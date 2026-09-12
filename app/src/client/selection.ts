@@ -9,7 +9,7 @@ import { state } from './state.js'
  * toolbar reveals itself, and tap on a tile toggles selection instead of
  * opening the lightbox. No-op if already active.
  */
-export function enterSelectMode () {
+export function enterSelectMode() {
   if (state.selectMode) return
   state.selectMode = true
   if (state.container) state.container.classList.add('select-mode')
@@ -20,7 +20,7 @@ export function enterSelectMode () {
  * Leave selection mode and clear the selection. Removes the visual marker
  * from every tile currently in the DOM. No-op if not in select mode.
  */
-export function exitSelectMode () {
+function exitSelectMode() {
   if (!state.selectMode) return
   state.selectMode = false
   // Clear DOM markers on the tiles currently in the DOM
@@ -36,7 +36,7 @@ export function exitSelectMode () {
  * visual marker if that tile is currently rendered, and exits selection
  * mode automatically when the last item is deselected.
  */
-export function toggleSelection (id: string) {
+export function toggleSelection(id: string) {
   if (state.selected.has(id)) state.selected.delete(id)
   else state.selected.add(id)
   const idx = state.items.findIndex(it => it.id === id)
@@ -47,7 +47,7 @@ export function toggleSelection (id: string) {
   else updateSelectionUI()
 }
 
-function updateSelectionUI () {
+function updateSelectionUI() {
   if (state.countEl) {
     state.countEl.textContent = state.selected.size + ' selected'
   }
@@ -58,7 +58,7 @@ function updateSelectionUI () {
   }
 }
 
-function selectAllOrNone () {
+function selectAllOrNone() {
   if (state.selected.size === state.items.length) {
     // Deselect all but keep select mode active
     for (const a of state.renderedTiles.values()) a.classList.remove('selected')
@@ -77,7 +77,7 @@ function selectAllOrNone () {
  * downloads the asset directly (no one-entry zip); two or more selections
  * POST to /share/:key/download and the server streams a zip back.
  */
-function downloadSelected () {
+function downloadSelected() {
   if (state.selected.size === 0) return
   // Single selection: download the file directly so the user gets the image
   // (or video) instead of a one-entry zip.
@@ -114,7 +114,7 @@ function downloadSelected () {
  * isn't on the page (the share doesn't allow downloads), this short-circuits
  * and selection-related code paths never activate.
  */
-export function setupToolbar () {
+export function setupToolbar() {
   state.toolbarEl = document.getElementById('select-toolbar')
   // No toolbar means downloads aren't allowed for this share; nothing to wire
   if (!state.toolbarEl) return

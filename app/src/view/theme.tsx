@@ -20,6 +20,6 @@ const themeScript = `
   else document.documentElement.classList.remove('dark');
 `
 
-export function ThemeScript () {
-  return <script dangerouslySetInnerHTML={{ __html: themeScript }}/>
+export function ThemeScript() {
+  return <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 }

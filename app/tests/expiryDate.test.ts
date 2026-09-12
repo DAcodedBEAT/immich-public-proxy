@@ -1,15 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import dayjs from 'dayjs'
-import 'dayjs/locale/de' // load German so the localised-format assertions are deterministic
 import { expiryDate } from '../src/share'
 import { loadConfig } from '../src/config/loader'
 import { KeyType, SharedLink } from '../src/types'
 
 // expiryDate formats the share's Immich expiry for the gallery subtitle. It is
 // gated behind ipp.gallery.showExpiryDate (default off) and formatted with
-// ipp.gallery.expiryDateFormat (a dayjs format string, default ISO 8601 date).
+// ipp.gallery.expiryDateFormat (a dayjs-style token string, default ISO 8601 date).
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -22,6 +20,8 @@ const share = (expiresAt: string | null): SharedLink => ({
   expiresAt
 })
 
+// 2026-07-10T12:00:00.000Z - noon UTC, so the local calendar date is 2026-07-10
+// in any real-world timezone (the test environment runs in UTC).
 const EXPIRES = '2026-07-10T12:00:00.000Z'
 
 describe('expiryDate', () => {
@@ -42,17 +42,17 @@ describe('expiryDate', () => {
 
   it('formats as an ISO 8601 date by default when enabled', () => {
     setConfig({ ipp: { gallery: { showExpiryDate: true } } })
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).format('YYYY-MM-DD'))
+    expect(expiryDate(share(EXPIRES))).toBe('2026-07-10')
   })
 
-  it('honours a custom dayjs format string', () => {
+  it('honours a custom format string', () => {
     setConfig({ ipp: { gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY' } } })
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).format('D MMMM YYYY'))
+    expect(expiryDate(share(EXPIRES))).toBe('10 July 2026')
   })
 
   it('falls back to the default format when the config value is not a usable string', () => {
     setConfig({ ipp: { gallery: { showExpiryDate: true, expiryDateFormat: '' } } })
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).format('YYYY-MM-DD'))
+    expect(expiryDate(share(EXPIRES))).toBe('2026-07-10')
   })
 
   it('returns undefined for an unparseable expiry date', () => {
@@ -61,18 +61,34 @@ describe('expiryDate', () => {
   })
 
   it('localises name tokens with a configured expiryDateLocale', () => {
-    setConfig({ ipp: { gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY', expiryDateLocale: 'de' } } })
+    setConfig({
+      ipp: {
+        gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY', expiryDateLocale: 'de' }
+      }
+    })
     // "10 Juli 2026" in German, not "10 July 2026"
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).locale('de').format('D MMMM YYYY'))
+    expect(expiryDate(share(EXPIRES))).toBe('10 Juli 2026')
   })
 
   it('accepts a locale case-insensitively', () => {
-    setConfig({ ipp: { gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY', expiryDateLocale: 'DE' } } })
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).locale('de').format('D MMMM YYYY'))
+    setConfig({
+      ipp: {
+        gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY', expiryDateLocale: 'DE' }
+      }
+    })
+    expect(expiryDate(share(EXPIRES))).toBe('10 Juli 2026')
   })
 
-  it('falls back to English for an unknown or malformed locale', () => {
-    setConfig({ ipp: { gallery: { showExpiryDate: true, expiryDateFormat: 'D MMMM YYYY', expiryDateLocale: '../en' } } })
-    expect(expiryDate(share(EXPIRES))).toBe(dayjs(EXPIRES).locale('en').format('D MMMM YYYY'))
+  it('falls back to English for a malformed locale', () => {
+    setConfig({
+      ipp: {
+        gallery: {
+          showExpiryDate: true,
+          expiryDateFormat: 'D MMMM YYYY',
+          expiryDateLocale: '../en'
+        }
+      }
+    })
+    expect(expiryDate(share(EXPIRES))).toBe('10 July 2026')
   })
 })

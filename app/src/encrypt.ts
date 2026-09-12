@@ -1,8 +1,8 @@
 import crypto from 'crypto'
 
 interface EncryptedPayload {
-  iv: string; // Initialization Vector (IV)
-  cr: string; // Encrypted data
+  iv: string // Initialization Vector (IV)
+  cr: string // Encrypted data
 }
 
 // Generate a random 256-bit key on startup
@@ -12,7 +12,7 @@ const algorithm = 'aes-256-cbc'
 /**
  * Encrypt text data for storing in the session cookie
  */
-export function encrypt (text: string): EncryptedPayload {
+export function encrypt(text: string): EncryptedPayload {
   try {
     const ivBuf = crypto.randomBytes(16)
     const cipher = crypto.createCipheriv(algorithm, Buffer.from(key), ivBuf)
@@ -22,7 +22,7 @@ export function encrypt (text: string): EncryptedPayload {
       iv: ivBuf.toString('hex'),
       cr: encrypted
     }
-  } catch (e) { }
+  } catch (e) {}
 
   return {
     cr: '',
@@ -33,12 +33,16 @@ export function encrypt (text: string): EncryptedPayload {
 /**
  * Decrypt data which was stored in the session cookie
  */
-export function decrypt (payload: EncryptedPayload): string {
+export function decrypt(payload: EncryptedPayload): string {
   try {
-    const decipher = crypto.createDecipheriv(algorithm, Buffer.from(key), Buffer.from(payload.iv, 'hex'))
+    const decipher = crypto.createDecipheriv(
+      algorithm,
+      Buffer.from(key),
+      Buffer.from(payload.iv, 'hex')
+    )
     let decrypted = decipher.update(payload.cr, 'hex', 'utf8')
     decrypted += decipher.final('utf8')
     return decrypted
-  } catch (e) { }
+  } catch (e) {}
   return ''
 }

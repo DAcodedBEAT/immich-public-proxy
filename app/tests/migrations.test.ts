@@ -138,7 +138,9 @@ describe('descriptionSplit shim', () => {
 
     applyMigrations(config)
 
-    const description = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).description
+    const description = (
+      (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    ).description
     expect(description).toEqual({ caption: true, sidebar: true })
     expect(logSpy).toHaveBeenCalledOnce()
   })
@@ -150,7 +152,9 @@ describe('descriptionSplit shim', () => {
 
     applyMigrations(config)
 
-    const description = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).description
+    const description = (
+      (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    ).description
     expect(description).toEqual({ caption: false, sidebar: false })
   })
 
@@ -165,7 +169,9 @@ describe('descriptionSplit shim', () => {
 
     applyMigrations(config)
 
-    const description = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).description
+    const description = (
+      (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    ).description
     expect(description).toEqual({ caption: false, sidebar: true })
     expect(logSpy).not.toHaveBeenCalled()
   })
@@ -183,7 +189,8 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).exif as Record<string, unknown>
+    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>)
+      .exif as Record<string, unknown>
     expect(exif.enabled).toBeUndefined()
     expect(exif.dateTimeOriginal).toBe(true)
     expect(exif.timeZone).toBeUndefined()
@@ -211,7 +218,9 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const location = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).location as Record<string, unknown>
+    const location = (
+      (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    ).location as Record<string, unknown>
     expect(location.enabled).toBeUndefined()
     expect(location.city).toBe(true)
     expect(location.state).toBe(true)
@@ -239,7 +248,8 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).exif as Record<string, unknown>
+    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>)
+      .exif as Record<string, unknown>
     expect(exif.enabled).toBeUndefined()
     expect(exif.dateTimeOriginal).toBe(false)
     expect(exif.fileName).toBe(false)
@@ -259,7 +269,9 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const location = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).location as Record<string, unknown>
+    const location = (
+      (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    ).location as Record<string, unknown>
     expect(location.gps).toBe(false)
   })
 
@@ -275,7 +287,10 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const showMetadata = (config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>
+    const showMetadata = (config.ipp as Record<string, unknown>).showMetadata as Record<
+      string,
+      unknown
+    >
     const exif = showMetadata.exif as Record<string, unknown>
     const location = showMetadata.location as Record<string, unknown>
     expect(exif.dateTimeOriginal).toBe(true)
@@ -295,7 +310,8 @@ describe('metadataEnabled shim', () => {
 
     applyMigrations(config)
 
-    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>).exif as Record<string, unknown>
+    const exif = ((config.ipp as Record<string, unknown>).showMetadata as Record<string, unknown>)
+      .exif as Record<string, unknown>
     expect(exif.dateTimeOriginal).toBe(true)
     expect(logSpy).not.toHaveBeenCalled()
   })
@@ -322,7 +338,9 @@ describe('downloadOriginalPhoto shim', () => {
   })
 
   it('does not overwrite an explicitly-set maxDownloadQuality', () => {
-    const config = { ipp: { downloadOriginalPhoto: false, maxDownloadQuality: 'fullsize' } } as Record<string, unknown>
+    const config = {
+      ipp: { downloadOriginalPhoto: false, maxDownloadQuality: 'fullsize' }
+    } as Record<string, unknown>
     applyMigrations(config)
     expect((config.ipp as Record<string, unknown>).maxDownloadQuality).toBe('fullsize')
     expect(logSpy).not.toHaveBeenCalled()

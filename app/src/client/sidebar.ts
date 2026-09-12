@@ -5,12 +5,19 @@
 // by the toolbar info button or the `i` key, persisted via localStorage.
 
 import { state, SIDEBAR_STORAGE_KEY } from './state.js'
-import { ICON_INFO, ICON_CLOSE, ICON_IMAGE, ICON_CALENDAR, ICON_CAMERA, ICON_IRIS, ICON_MAP } from './icons.js'
+import {
+  ICON_INFO,
+  ICON_CLOSE,
+  ICON_IMAGE,
+  ICON_CALENDAR,
+  ICON_CAMERA,
+  ICON_IRIS,
+  ICON_MAP
+} from './icons.js'
 import type { GalleryItem, GalleryExif } from '../shared/types.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LightboxInstance = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type PswpInstance = any
 
 interface PswpUiElementConfig {
@@ -28,7 +35,7 @@ interface PswpUiElementConfig {
  * Register the sidebar panel + toolbar toggle button + `i` keybinding.
  * Called once from initLightbox after the lightbox is constructed.
  */
-export function registerSidebar (lightbox: LightboxInstance) {
+export function registerSidebar(lightbox: LightboxInstance) {
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({
       name: 'sidebar',
@@ -70,7 +77,7 @@ export function registerSidebar (lightbox: LightboxInstance) {
   // sidebar first on press; PhotoSwipe handles a second Escape to close
   // the lightbox. We attach to window because PhotoSwipe doesn't expose a
   // keypress hook for arbitrary keys.
-  window.addEventListener('keydown', (e) => {
+  window.addEventListener('keydown', e => {
     if (!state.lightbox || !state.lightbox.pswp) return
     if (e.key === 'i' || e.key === 'I') {
       // Don't steal `i` from text inputs (none exist in the lightbox today,
@@ -87,18 +94,18 @@ export function registerSidebar (lightbox: LightboxInstance) {
   })
 }
 
-function toggleSidebar (pswp: PswpInstance) {
+function toggleSidebar(pswp: PswpInstance) {
   setSidebarOpen(pswp, !state.sidebarOpen)
 }
 
-function setSidebarOpen (pswp: PswpInstance, open: boolean) {
+function setSidebarOpen(pswp: PswpInstance, open: boolean) {
   if (state.sidebarOpen === open) return
   state.sidebarOpen = open
   writePersistedState(open)
   applyOpenState(pswp)
 }
 
-function applyOpenState (pswp: PswpInstance) {
+function applyOpenState(pswp: PswpInstance) {
   const root = document.documentElement
   if (state.sidebarOpen) root.classList.add('ipp-sidebar-open')
   else root.classList.remove('ipp-sidebar-open')
@@ -108,7 +115,7 @@ function applyOpenState (pswp: PswpInstance) {
   }
 }
 
-function readPersistedState (): boolean {
+function readPersistedState(): boolean {
   try {
     return localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1'
   } catch (e) {
@@ -116,7 +123,7 @@ function readPersistedState (): boolean {
   }
 }
 
-function writePersistedState (open: boolean) {
+function writePersistedState(open: boolean) {
   try {
     localStorage.setItem(SIDEBAR_STORAGE_KEY, open ? '1' : '0')
   } catch (e) {
@@ -130,7 +137,7 @@ function writePersistedState (open: boolean) {
 // `gallery/exif.ts` (rules table); legacy-config migration lives in
 // `config/migrations.ts`. Adding a new field requires updating all three.
 
-function renderContents (root: HTMLElement, item: GalleryItem | undefined) {
+function renderContents(root: HTMLElement, item: GalleryItem | undefined) {
   root.replaceChildren()
   if (!item) return
 
@@ -159,7 +166,7 @@ function renderContents (root: HTMLElement, item: GalleryItem | undefined) {
   }
 }
 
-function renderHeader (): HTMLElement {
+function renderHeader(): HTMLElement {
   const header = document.createElement('header')
   header.className = 'ipp-sidebar-header'
   const close = document.createElement('button')
@@ -178,21 +185,21 @@ function renderHeader (): HTMLElement {
   return header
 }
 
-function renderSection (className: string, ...children: HTMLElement[]): HTMLElement {
+function renderSection(className: string, ...children: HTMLElement[]): HTMLElement {
   const section = document.createElement('section')
   section.className = 'ipp-sidebar-section ipp-sidebar-' + className
   for (const child of children) section.appendChild(child)
   return section
 }
 
-function renderDescription (description: string): HTMLElement {
+function renderDescription(description: string): HTMLElement {
   const el = document.createElement('p')
   el.className = 'ipp-sidebar-description'
   el.textContent = description
   return el
 }
 
-function renderDetailRows (exif: GalleryExif, item: GalleryItem): HTMLElement[] {
+function renderDetailRows(exif: GalleryExif, item: GalleryItem): HTMLElement[] {
   const heading = document.createElement('h3')
   heading.className = 'ipp-sidebar-heading'
   heading.textContent = 'Details'
@@ -212,7 +219,7 @@ function renderDetailRows (exif: GalleryExif, item: GalleryItem): HTMLElement[] 
   return rows
 }
 
-function renderDateRow (iso: string, timeZone?: string, localDateTime?: string): HTMLElement {
+function renderDateRow(iso: string, timeZone?: string, localDateTime?: string): HTMLElement {
   const row = makeRow(ICON_CALENDAR)
   row.classList.add('ipp-sidebar-date')
   const body = row.querySelector('.ipp-sidebar-row-body') as HTMLElement
@@ -254,7 +261,7 @@ interface RowSpec {
  * Build one info-sidebar row. Returns `null` when the row would have
  * neither a label nor any non-null stat, so the caller can skip appending.
  */
-function renderRow (spec: RowSpec): HTMLElement | null {
+function renderRow(spec: RowSpec): HTMLElement | null {
   const presentStats = spec.stats.filter((s): s is string => s != null && s !== '')
   if (!spec.label && presentStats.length === 0) return null
 
@@ -275,7 +282,7 @@ function renderRow (spec: RowSpec): HTMLElement | null {
   return row
 }
 
-function renderFileRow (exif: GalleryExif): HTMLElement | null {
+function renderFileRow(exif: GalleryExif): HTMLElement | null {
   const hasDims = !!(exif.width && exif.height)
   const mp = hasDims ? Math.round((exif.width! * exif.height!) / 1_000_000) : 0
   return renderRow({
@@ -290,7 +297,7 @@ function renderFileRow (exif: GalleryExif): HTMLElement | null {
   })
 }
 
-function renderCameraRow (exif: GalleryExif): HTMLElement | null {
+function renderCameraRow(exif: GalleryExif): HTMLElement | null {
   return renderRow({
     icon: ICON_CAMERA,
     label: [exif.make, exif.model].filter(Boolean).join(' ').trim() || null,
@@ -301,7 +308,7 @@ function renderCameraRow (exif: GalleryExif): HTMLElement | null {
   })
 }
 
-function renderLensRow (exif: GalleryExif): HTMLElement | null {
+function renderLensRow(exif: GalleryExif): HTMLElement | null {
   return renderRow({
     icon: ICON_IRIS,
     label: exif.lensModel,
@@ -313,7 +320,7 @@ function renderLensRow (exif: GalleryExif): HTMLElement | null {
   })
 }
 
-function renderLocation (exif: GalleryExif): HTMLElement {
+function renderLocation(exif: GalleryExif): HTMLElement {
   const wrap = document.createElement('div')
   wrap.className = 'ipp-sidebar-row'
   const icon = document.createElement('div')
@@ -339,9 +346,15 @@ function renderLocation (exif: GalleryExif): HTMLElement {
     if (state.metadataConfig.locationWebLink) {
       const link = document.createElement('a')
       link.className = 'ipp-sidebar-osm'
-      link.href = 'https://www.openstreetmap.org/?mlat=' + exif.latitude +
-        '&mlon=' + exif.longitude +
-        '#map=15/' + exif.latitude + '/' + exif.longitude
+      link.href =
+        'https://www.openstreetmap.org/?mlat=' +
+        exif.latitude +
+        '&mlon=' +
+        exif.longitude +
+        '#map=15/' +
+        exif.latitude +
+        '/' +
+        exif.longitude
       link.target = '_blank'
       // noreferrer suppresses the Referer header so the share URL doesn't end up in the map provider's webserver logs
       link.rel = 'noopener noreferrer'
@@ -356,7 +369,7 @@ function renderLocation (exif: GalleryExif): HTMLElement {
 
 // ----- helpers -------------------------------------------------------------
 
-function makeRow (iconSvg: string): HTMLElement {
+function makeRow(iconSvg: string): HTMLElement {
   const row = document.createElement('div')
   row.className = 'ipp-sidebar-row'
   const icon = document.createElement('div')
@@ -369,22 +382,35 @@ function makeRow (iconSvg: string): HTMLElement {
   return row
 }
 
-function makeStat (text: string): HTMLElement {
+function makeStat(text: string): HTMLElement {
   const span = document.createElement('span')
   span.textContent = text
   return span
 }
 
-function hasAnyExifField (exif: GalleryExif): boolean {
-  return !!(exif.dateTimeOriginal || exif.fileName || exif.width || exif.fileSizeInByte ||
-    exif.make || exif.model || exif.lensModel ||
-    exif.exposureTime != null || exif.iso != null ||
-    exif.fNumber != null || exif.focalLength != null)
+function hasAnyExifField(exif: GalleryExif): boolean {
+  return !!(
+    exif.dateTimeOriginal ||
+    exif.fileName ||
+    exif.width ||
+    exif.fileSizeInByte ||
+    exif.make ||
+    exif.model ||
+    exif.lensModel ||
+    exif.exposureTime != null ||
+    exif.iso != null ||
+    exif.fNumber != null ||
+    exif.focalLength != null
+  )
 }
 
-function hasAnyLocationField (exif: GalleryExif): boolean {
-  return !!(exif.city || exif.state || exif.country ||
-    (exif.latitude != null && exif.longitude != null))
+function hasAnyLocationField(exif: GalleryExif): boolean {
+  return !!(
+    exif.city ||
+    exif.state ||
+    exif.country ||
+    (exif.latitude != null && exif.longitude != null)
+  )
 }
 
 const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -412,7 +438,7 @@ export interface FormattedDate {
  * `locales` follows the browser locale when undefined; tests pass 'en-US'
  * so assertions don't depend on the machine running them.
  */
-export function formatDate (iso: string, timeZone?: string, locales?: string): FormattedDate {
+export function formatDate(iso: string, timeZone?: string, locales?: string): FormattedDate {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return { date: iso, time: '' }
 
@@ -436,9 +462,15 @@ export function formatDate (iso: string, timeZone?: string, locales?: string): F
     if (offsetMinutes != null) {
       const localWallClock = new Date(d.getTime() + offsetMinutes * 60_000)
       return {
-        date: new Intl.DateTimeFormat(locales, { ...DATE_FORMAT_OPTIONS, timeZone: 'UTC' }).format(localWallClock),
-        time: new Intl.DateTimeFormat(locales, { ...TIME_FORMAT_OPTIONS, timeZone: 'UTC' }).format(localWallClock) +
-          ' ' + formatFixedOffset(offsetMinutes)
+        date: new Intl.DateTimeFormat(locales, { ...DATE_FORMAT_OPTIONS, timeZone: 'UTC' }).format(
+          localWallClock
+        ),
+        time:
+          new Intl.DateTimeFormat(locales, { ...TIME_FORMAT_OPTIONS, timeZone: 'UTC' }).format(
+            localWallClock
+          ) +
+          ' ' +
+          formatFixedOffset(offsetMinutes)
       }
     }
   }
@@ -458,7 +490,7 @@ export function formatDate (iso: string, timeZone?: string, locales?: string): F
  * whose `Z` suffix is nominal) exactly as written, with no offset label -
  * every viewer sees what the camera clock showed.
  */
-export function formatWallClock (iso: string, locales?: string): FormattedDate {
+export function formatWallClock(iso: string, locales?: string): FormattedDate {
   const d = new Date(iso)
   if (isNaN(d.getTime())) return { date: iso, time: '' }
   try {
@@ -475,7 +507,7 @@ export function formatWallClock (iso: string, locales?: string): FormattedDate {
  * True when this browser's Intl accepts the given DateTimeFormat options -
  * unknown timezones and unsupported `timeZoneName` values throw.
  */
-function canFormat (options: Intl.DateTimeFormatOptions): boolean {
+function canFormat(options: Intl.DateTimeFormatOptions): boolean {
   try {
     return !!new Intl.DateTimeFormat(undefined, options)
   } catch {
@@ -483,7 +515,7 @@ function canFormat (options: Intl.DateTimeFormatOptions): boolean {
   }
 }
 
-function parseFixedOffset (timeZone: string): number | null {
+function parseFixedOffset(timeZone: string): number | null {
   const match = /^(?:UTC|GMT)([+-])(\d{1,2})(?::?(\d{2}))?$/i.exec(timeZone.trim())
   if (!match) return null
   const hours = Number(match[2])
@@ -493,15 +525,17 @@ function parseFixedOffset (timeZone: string): number | null {
   return match[1] === '-' ? -total : total
 }
 
-function formatFixedOffset (offsetMinutes: number): string {
+function formatFixedOffset(offsetMinutes: number): string {
   const sign = offsetMinutes < 0 ? '-' : '+'
   const absolute = Math.abs(offsetMinutes)
-  const hours = Math.floor(absolute / 60).toString().padStart(2, '0')
+  const hours = Math.floor(absolute / 60)
+    .toString()
+    .padStart(2, '0')
   const minutes = (absolute % 60).toString().padStart(2, '0')
   return `GMT${sign}${hours}:${minutes}`
 }
 
-export function formatBytes (bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1024) return bytes + ' B'
   const kb = bytes / 1024
   if (kb < 1024) return kb.toFixed(1) + ' KiB'

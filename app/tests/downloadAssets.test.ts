@@ -18,7 +18,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function makeAsset (id: string): Asset {
+function makeAsset(id: string): Asset {
   return {
     id,
     key: 'testkey',
@@ -51,33 +51,46 @@ class FakeRes extends Writable {
   /** Delay applied to every write, to simulate a slow visitor. */
   writeDelayMs = 0
 
-  constructor () {
+  constructor() {
     super()
     // Node's http stack handles response stream errors internally; a bare
     // Writable would crash the test process on destroy(err) instead.
-    this.on('error', () => { /* swallowed, like http.ServerResponse */ })
+    this.on('error', () => {
+      /* swallowed, like http.ServerResponse */
+    })
   }
 
-  setHeader (name: string, value: string) { this.headers[name] = value; return this }
-  status (code: number) { this.statusCode = code; return this }
-  send () { this.end(); return this }
+  setHeader(name: string, value: string) {
+    this.headers[name] = value
+    return this
+  }
+  status(code: number) {
+    this.statusCode = code
+    return this
+  }
+  send() {
+    this.end()
+    return this
+  }
 
-  _write (chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
+  _write(chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
     this.received += chunk.length
     this.chunks.push(chunk)
     if (this.writeDelayMs > 0) setTimeout(cb, this.writeDelayMs)
     else cb()
   }
 
-  get output () { return Buffer.concat(this.chunks) }
+  get output() {
+    return Buffer.concat(this.chunks)
+  }
 }
 
-function asResponse (res: FakeRes): Response {
+function asResponse(res: FakeRes): Response {
   return res as unknown as Response
 }
 
 /** Fetch stub that returns the full body immediately. */
-function instantFetch (bytes: number) {
+function instantFetch(bytes: number) {
   return vi.fn(async () => new globalThis.Response(new Uint8Array(bytes), { status: 200 }))
 }
 
@@ -86,15 +99,19 @@ function instantFetch (bytes: number) {
  * only when the passed-in signal aborts - like a real streaming download
  * that gets cancelled. Records each request's signal for assertions.
  */
-function trickleFetch (signals: AbortSignal[]) {
+function trickleFetch(signals: AbortSignal[]) {
   return vi.fn(async (_url: unknown, init?: RequestInit) => {
     const signal = init?.signal as AbortSignal
     signals.push(signal)
     const stream = new ReadableStream({
-      start (controller) {
+      start(controller) {
         controller.enqueue(new Uint8Array(1024))
         signal.addEventListener('abort', () => {
-          try { controller.error(signal.reason ?? new Error('aborted')) } catch { /* already errored */ }
+          try {
+            controller.error(signal.reason ?? new Error('aborted'))
+          } catch {
+            /* already errored */
+          }
         })
       }
     })
@@ -106,11 +123,11 @@ function trickleFetch (signals: AbortSignal[]) {
  * Fetch stub with a pull-based body: chunks are only produced on demand, and
  * `pulled` counts how many bytes have been handed over so far.
  */
-function pullFetch (totalBytes: number, chunkBytes: number, counter: { pulled: number }) {
+function pullFetch(totalBytes: number, chunkBytes: number, counter: { pulled: number }) {
   return vi.fn(async () => {
     let sent = 0
     const stream = new ReadableStream({
-      pull (controller) {
+      pull(controller) {
         if (sent >= totalBytes) {
           controller.close()
           return
@@ -131,8 +148,8 @@ function pullFetch (totalBytes: number, chunkBytes: number, counter: { pulled: n
  * expected entries; extractors read the central directory, so it's the part
  * that matters.
  */
-function centralDirectory (zip: Buffer): Array<{ name: string, size: number }> {
-  const entries: Array<{ name: string, size: number }> = []
+function centralDirectory(zip: Buffer): Array<{ name: string; size: number }> {
+  const entries: Array<{ name: string; size: number }> = []
   let offset = zip.indexOf('PK\x01\x02', 0, 'binary')
   while (offset !== -1) {
     const size = zip.readUInt32LE(offset + 24)
@@ -144,7 +161,7 @@ function centralDirectory (zip: Buffer): Array<{ name: string, size: number }> {
   return entries
 }
 
-function countOf (zip: Buffer, signature: string): number {
+function countOf(zip: Buffer, signature: string): number {
   let count = 0
   let offset = zip.indexOf(signature, 0, 'binary')
   while (offset !== -1) {
@@ -200,7 +217,11 @@ describe('downloadAssets', () => {
     const fetchMock = trickleFetch(signals)
     vi.stubGlobal('fetch', fetchMock)
     const res = new FakeRes()
-    const done = downloadAssets(asResponse(res), share, [makeAsset('a1'), makeAsset('a2'), makeAsset('a3')])
+    const done = downloadAssets(asResponse(res), share, [
+      makeAsset('a1'),
+      makeAsset('a2'),
+      makeAsset('a3')
+    ])
     // Give the first body a moment to start; nothing else should be in flight
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -230,7 +251,10 @@ describe('downloadAssets', () => {
 
   it('answers 404 (not a broken zip) when the first asset fails before anything is sent', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.stubGlobal('fetch', vi.fn(async () => new globalThis.Response('nope', { status: 500 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new globalThis.Response('nope', { status: 500 }))
+    )
     const res = new FakeRes()
     await downloadAssets(asResponse(res), share, [makeAsset('a1'), makeAsset('a2')])
     expect(res.statusCode).toBe(404)
@@ -243,12 +267,15 @@ describe('downloadAssets', () => {
   it('destroys the response when a later asset keeps failing', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     let calls = 0
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      calls++
-      return calls === 1
-        ? new globalThis.Response(new Uint8Array(2048), { status: 200 })
-        : new globalThis.Response('nope', { status: 500 })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls++
+        return calls === 1
+          ? new globalThis.Response(new Uint8Array(2048), { status: 200 })
+          : new globalThis.Response('nope', { status: 500 })
+      })
+    )
     const res = new FakeRes()
     await downloadAssets(asResponse(res), share, [makeAsset('a1'), makeAsset('a2')])
     expect(res.received).toBeGreaterThan(0)
@@ -262,7 +289,7 @@ describe('downloadAssets', () => {
     const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
       signals.push(init?.signal as AbortSignal)
       const stream = new ReadableStream({
-        start (controller) {
+        start(controller) {
           controller.enqueue(new Uint8Array(1024))
           setTimeout(() => controller.error(new Error('upstream died')), 20)
         }
@@ -271,7 +298,11 @@ describe('downloadAssets', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
     const res = new FakeRes()
-    await downloadAssets(asResponse(res), share, [makeAsset('a1'), makeAsset('a2'), makeAsset('a3')])
+    await downloadAssets(asResponse(res), share, [
+      makeAsset('a1'),
+      makeAsset('a2'),
+      makeAsset('a3')
+    ])
     expect(res.destroyed).toBe(true)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(signals.every(s => s.aborted)).toBe(true)

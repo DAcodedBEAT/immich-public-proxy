@@ -11,7 +11,7 @@ import type { GalleryItem, GroupByDateMode } from '../src/shared/types'
  * strings, which vary with the test runner's locale.
  */
 
-function item (partial: Partial<GalleryItem>): GalleryItem {
+function item(partial: Partial<GalleryItem>): GalleryItem {
   return {
     id: partial.id || Math.random().toString(),
     type: 'IMAGE',
@@ -24,7 +24,7 @@ function item (partial: Partial<GalleryItem>): GalleryItem {
   }
 }
 
-function labelsFor (items: GalleryItem[], mode: GroupByDateMode | false): Array<string> {
+function labelsFor(items: GalleryItem[], mode: GroupByDateMode | false): Array<string> {
   state.items = items
   state.groupByDate = mode
   // Desktop width so the justified-rows path runs; grouping is width-agnostic.
@@ -68,7 +68,10 @@ describe('gallery date grouping', () => {
     // Shot at 23:00 local on the 25th; stored UTC ticks over to the 26th.
     // Day grouping must follow the local date, so both land under the 25th.
     const items = [
-      item({ localDateTime: '2024-12-25T23:00:00.000Z', fileCreatedAt: '2024-12-26T04:00:00.000Z' }),
+      item({
+        localDateTime: '2024-12-25T23:00:00.000Z',
+        fileCreatedAt: '2024-12-26T04:00:00.000Z'
+      }),
       item({ localDateTime: '2024-12-25T21:00:00.000Z', fileCreatedAt: '2024-12-26T02:00:00.000Z' })
     ]
     expect(labelsFor(items, 'day')).toHaveLength(1)

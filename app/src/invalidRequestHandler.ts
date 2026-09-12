@@ -23,7 +23,11 @@ import { log } from './utils/log'
  * Operators can replace this file entirely via a Docker volume mount to
  * customise the behavior; the function signature is the public contract.
  */
-export function respondToInvalidRequest (res: Response, defaultResponse: number | string | null, logMessage = '') {
+export function respondToInvalidRequest(
+  res: Response,
+  defaultResponse: number | string | null,
+  logMessage = ''
+) {
   let method = getConfigOption('ipp.customInvalidResponse', false)
   if (method === false) {
     // No custom method specified, use the default
