@@ -13,16 +13,20 @@ import express from 'express'
 import cookieSession from 'cookie-session'
 import {
   accessible,
+  canUpload,
   enforceMinimumImmichVersion,
   fetchAssetDetail,
   getKeyTypeFromShare,
   getShareByKey,
+  getSupportedMimeTypes,
   handleShareRequest,
   isId,
   isKey,
+  isPasswordVerified,
   startImmichHealthMonitor
 } from './immich'
 import { buildAssetMetadata } from './gallery/metadata'
+import { handleUpload, handleUploadCheck } from './upload/handler'
 import crypto from 'crypto'
 import { assetBuffer } from './stream/asset'
 import { downloadAssets } from './stream/download'
@@ -37,6 +41,7 @@ import { decrypt, encrypt } from './encrypt'
 import { respondToInvalidRequest } from './invalidRequestHandler'
 import { ASSET_VERSION } from './version'
 import { isBanned } from './security/banlist'
+import { logAbuse } from './utils/abuseLog'
 import { formatStartupSummary } from './utils/startupSummary'
 import { h } from 'preact'
 import { renderPage } from './view/render'
@@ -296,6 +301,59 @@ app.post(
   })
 )
 
+/**
+ * Shared validation for the upload routes: resolves the share link (via the
+ * same resolveShare guard the read routes use) and checks upload permission.
+ * Responds with a JSON error and returns null on any failure.
+ */
+async function validateUploadShare(req: Request, res: Response) {
+  const keyType = getKeyTypeFromShare(req.params.shareType)
+  const resolved = await resolveShare(req, keyType)
+  if (!resolved.ok) {
+    res
+      .status(resolved.status)
+      .json({ error: resolved.passwordRequired ? 'Password required' : 'Invalid share link' })
+    return null
+  }
+  const passwordVerified = await isPasswordVerified(req.params.key, keyType, req.password)
+  if (!canUpload(resolved.link, passwordVerified)) {
+    logAbuse('upload-forbidden', req, `share=${req.params.key.slice(0, 8)}`)
+    res.status(403).json({ error: 'Uploads not allowed for this share' })
+    return null
+  }
+  return { link: resolved.link, keyType }
+}
+
+/*
+ * [ROUTE] Upload a single file to the album associated with a share link.
+ * Share validation happens here (mirroring the download route); everything
+ * after that - multipart parsing, streaming to Immich, album-add, response -
+ * lives in upload/handler.ts.
+ */
+app.post(
+  '/:shareType(share|s)/:key/upload',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const valid = await validateUploadShare(req, res)
+    if (valid) await handleUpload(req, res, valid.link, valid.keyType)
+  })
+)
+
+/*
+ * [ROUTE] Pre-upload duplicate check. The client sends SHA-1 checksums; for
+ * files Immich already has, the server adds the existing asset to the album
+ * and the client skips the byte transfer. See handleUploadCheck for the
+ * security reasoning (client supplies checksums, never asset IDs).
+ */
+app.post(
+  '/:shareType(share|s)/:key/upload-check',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const valid = await validateUploadShare(req, res)
+    if (valid) await handleUploadCheck(req, res, valid.link, valid.keyType)
+  })
+)
+
 /*
  * [ROUTE] Catch accidental POST requests to share URLs (e.g. from browser history
  * state issues) and force a clean GET redirect.
@@ -451,7 +509,9 @@ const server = app.listen(port, () => {
       formatStartupSummary({
         trustProxyHops,
         banlistPath: process.env.IPP_BANLIST_PATH,
-        publicBaseUrl: process.env.PUBLIC_BASE_URL
+        publicBaseUrl: process.env.PUBLIC_BASE_URL,
+        uploadsEnabled: !!process.env.IMMICH_API_KEY,
+        uploadRequirePassword: !!getConfigOption('ipp.upload.requirePassword', false)
       })
   )
   // Bail out early if the Immich server is older than IPP supports, rather
@@ -462,4 +522,18 @@ const server = app.listen(port, () => {
   // only ever runs once, at startup. Advisory only (see its own doc-comment
   // for why this never exits the process the way the startup check can).
   startImmichHealthMonitor()
+  // Warm the Immich media-types cache so the first upload doesn't pay the
+  // round trip. Only relevant when uploads are possible at all; failures are
+  // logged inside and simply retried on the first upload.
+  if (process.env.IMMICH_API_KEY) {
+    getSupportedMimeTypes().catch(() => {
+      /* logged internally */
+    })
+  }
 })
+// Node's default requestTimeout (5 min for the ENTIRE request body) would
+// kill any large slow upload - a 2GB video on a residential uplink takes far
+// longer. Disable it: stalled upload connections are already cut by the 30s
+// idle-timeout stream, and headersTimeout (default 60s) still drops
+// connections that never send a request.
+server.requestTimeout = 0

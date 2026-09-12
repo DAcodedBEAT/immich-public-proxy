@@ -140,6 +140,12 @@ Lightbox options. See [Lightbox](/config/lightbox).
 
 Description / EXIF / location reveal controls. See [Metadata](/config/metadata).
 
+## `upload`
+
+**Type:** `object`
+
+Guest-upload options (`requirePassword`, `maxFileSizeMb`, `concurrentUploads`). Also requires the `IMMICH_API_KEY` env var and per-share enablement in Immich. See [Uploads](../uploads.md).
+
 ## `customInvalidResponse`
 
 **Type:** various

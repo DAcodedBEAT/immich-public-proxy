@@ -37,6 +37,14 @@
         "gps": false
       }
     },
+    "upload": {
+      "requirePassword": false,
+      "maxFileSizeMb": 20000,
+      "concurrentUploads": 4,
+      "concurrentChecks": 20,
+      "responseTimeoutSec": 180,
+      "maxPendingUploads": 50
+    },
     "customInvalidResponse": false,
     "gallery": {
       "singleImage": false,

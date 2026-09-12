@@ -27,6 +27,10 @@ import { Password } from './view/password'
 import { respondToInvalidRequest } from './invalidRequestHandler'
 import { encrypt } from './encrypt'
 import { TtlLruCache } from './utils/ttlLruCache'
+import { PassThrough, Readable } from 'stream'
+import { randomUUID } from 'crypto'
+import { sanitize } from './utils/sanitize'
+import FormDataNode from 'form-data'
 
 /*
   In-process cache for share-link lookups. Each direct-asset request (e.g.
@@ -290,6 +294,438 @@ export function getShareResolutionLimiter(): ReturnType<typeof createLimiter> {
     _shareResolutionLimiter = createLimiter(n)
   }
   return _shareResolutionLimiter
+}
+
+/**
+ * Whether upload is permitted for the given shared link. Requires all of:
+ * - `IMMICH_API_KEY` is set (the proxy-level gate; Immich's own setting is ignored without it)
+ * - the share owner turned on `allowUpload` for this link
+ * - `ipp.upload.requirePassword` isn't set, or `passwordVerified` is true
+ *
+ * `passwordVerified` must come from `isPasswordVerified`, not from merely
+ * checking that a password string exists (see that function's doc-comment
+ * for why - the naive check is bypassable for shares with no Immich
+ * password at all).
+ */
+export function canUpload(link: SharedLink, passwordVerified: boolean): boolean {
+  if (!process.env.IMMICH_API_KEY) return false
+  if (!link.allowUpload) return false
+  if (getConfigOption('ipp.upload.requirePassword', false) && !passwordVerified) return false
+  return true
+}
+
+/**
+ * Whether `password` actually unlocked a password-protected share, for
+ * enforcing `ipp.upload.requirePassword`.
+ *
+ * `/share/unlock` stores whatever string a visitor posts, with no
+ * validation - `resolveShare` only rejects it (as passwordRequired) when
+ * the share actually needs a password and this one is wrong. So a truthy
+ * `password` on a successfully-resolved share means EITHER "this share
+ * needs a password and it was correct" OR "this share needs no password at
+ * all, so Immich never checked the string". `requirePassword` is documented
+ * as gating uploads on the former, so we re-query the share without a
+ * password: if Immich still says passwordRequired, the visitor's password
+ * was genuinely necessary and (since resolveShare already succeeded)
+ * correct. This bare lookup is usually a cache hit - most visitors load the
+ * gallery (an unauthenticated request) before ever uploading.
+ */
+export async function isPasswordVerified(
+  key: string,
+  keyType: KeyType,
+  password?: string
+): Promise<boolean> {
+  if (!password) return false
+  const bare = await getShareByKey(key, undefined, keyType)
+  return !!bare.passwordRequired
+}
+
+// Cache for GET /server/media-types (same coalescing pattern as shareCache).
+// Only kept on success - a failed fetch clears it so the next call retries.
+let _supportedMimeTypesPromise: Promise<Set<string>> | undefined
+
+/**
+ * Fetch the exact MIME types Immich accepts for upload. Returns a Set of
+ * concrete type strings (e.g. "image/jpeg", "video/mp4"). Falls back to a
+ * broad prefix check in the caller if the request fails or returns unexpected data.
+ */
+export function getSupportedMimeTypes(): Promise<Set<string>> {
+  if (_supportedMimeTypesPromise) return _supportedMimeTypesPromise
+  const promise = (async () => {
+    try {
+      const data = (await request('/server/media-types')) as
+        | { image?: string[]; video?: string[]; sidecar?: string[] }
+        | undefined
+      if (data?.image && data?.video) {
+        return new Set([...data.image, ...data.video])
+      }
+    } catch (e) {
+      log.warn(
+        'Could not fetch /server/media-types: ' + (e instanceof Error ? e.message : String(e))
+      )
+    }
+    // On failure, don't cache - let the next request retry.
+    _supportedMimeTypesPromise = undefined
+    return new Set<string>()
+  })()
+  _supportedMimeTypesPromise = promise
+  // If the promise rejects unexpectedly, clear it so the next call retries.
+  promise.catch(() => {
+    _supportedMimeTypesPromise = undefined
+  })
+  return promise
+}
+
+// Module-level upload concurrency limiter, built lazily so getConfigOption
+// runs after loadConfig().
+let _uploadLimiter: ReturnType<typeof createLimiter> | undefined
+export function getUploadLimiter(): ReturnType<typeof createLimiter> {
+  if (!_uploadLimiter) {
+    const n = Math.max(1, Number(getConfigOption('ipp.upload.concurrentUploads', 4)) || 4)
+    _uploadLimiter = createLimiter(n)
+  }
+  return _uploadLimiter
+}
+
+// Separate limiter for the pre-upload dedup check, kept apart from file
+// uploads on purpose: a check is a quick JSON round trip while an upload
+// holds its slot for the whole transfer, so sharing a pool would let a
+// burst of cheap checks (e.g. everyone opening the review sheet at once)
+// starve actual file transfers.
+let _uploadCheckLimiter: ReturnType<typeof createLimiter> | undefined
+export function getUploadCheckLimiter(): ReturnType<typeof createLimiter> {
+  if (!_uploadCheckLimiter) {
+    const n = Math.max(1, Number(getConfigOption('ipp.upload.concurrentChecks', 20)) || 20)
+    _uploadCheckLimiter = createLimiter(n)
+  }
+  return _uploadCheckLimiter
+}
+
+/**
+ * Audit context attached to each upload as `ipp-upload` asset metadata.
+ */
+export interface UploadContext {
+  uploaderName?: string
+  // Socket address - the only IP the client cannot forge.
+  uploaderIp?: string
+  // Raw X-Forwarded-For header. Client-settable; treat as unverified context.
+  forwardedFor?: string
+  // Truncated share key prefix (identification only, not a usable credential).
+  shareKey?: string
+  // Album the asset was destined for - makes orphans self-describing.
+  albumId?: string
+}
+
+/**
+ * Upload a single asset to Immich, streaming from a Node Readable with no
+ * in-process buffering.
+ *
+ * `fileCreatedAt` mainly helps files with no EXIF - Immich overrides it with
+ * the EXIF date once it processes the file.
+ *
+ * Returns `{ id, duplicate }`. When `duplicate` is true, Immich already had
+ * this file and `id` is the existing asset's ID - callers should still add
+ * it to the album, since the owner may want it there too.
+ */
+export async function uploadAsset(
+  fileStream: NodeJS.ReadableStream,
+  filename: string,
+  mimeType: string,
+  fileCreatedAt?: string,
+  context?: UploadContext
+): Promise<{ id: string; duplicate: boolean }> {
+  const apiKey = process.env.IMMICH_API_KEY
+  if (!apiKey) throw new Error('IMMICH_API_KEY not configured')
+  const createdAt =
+    fileCreatedAt && !isNaN(Date.parse(fileCreatedAt)) ? fileCreatedAt : new Date().toISOString()
+  const form = new FormDataNode()
+  form.append('deviceAssetId', `ipp-${randomUUID()}`)
+  form.append('deviceId', 'immich-public-proxy')
+  form.append('fileCreatedAt', createdAt)
+  form.append('fileModifiedAt', createdAt)
+  const safeFilename = sanitize(filename)
+  form.append('filename', safeFilename)
+  // Provenance metadata under key 'ipp-upload' - readable via
+  // GET /assets/{id}/metadata, same mechanism the mobile app uses ('mobile-app').
+  const metadataValue: Record<string, string> = { uploadedAt: new Date().toISOString() }
+  if (context?.uploaderName) metadataValue.uploaderName = context.uploaderName
+  if (context?.uploaderIp) metadataValue.uploaderIp = context.uploaderIp
+  if (context?.forwardedFor) metadataValue.forwardedFor = context.forwardedFor
+  if (context?.shareKey) metadataValue.shareKey = context.shareKey
+  if (context?.albumId) metadataValue.albumId = context.albumId
+  form.append('metadata', JSON.stringify([{ key: 'ipp-upload', value: metadataValue }]))
+  // Append the stream last; form-data reads it lazily so no buffering occurs.
+  form.append('assetData', fileStream, { filename: safeFilename, contentType: mimeType })
+
+  // Timeout for Immich's response, armed only after the body finishes
+  // uploading (form 'end') - inbound stalls are the idle-timeout stream's
+  // job, this just covers Immich hanging after receiving the file (e.g.
+  // hashing a large one) instead of pinning a limiter slot for undici's
+  // 5-minute default. Configurable because hash time scales with file size.
+  const responseTimeoutMs =
+    Math.max(1, Number(getConfigOption('ipp.upload.responseTimeoutSec', 180)) || 180) * 1000
+  const controller = new AbortController()
+  let responseTimer: NodeJS.Timeout | undefined
+  form.once('end', () => {
+    responseTimer = setTimeout(
+      () =>
+        controller.abort(
+          new Error(
+            `Immich did not respond within ${responseTimeoutMs / 1000}s of receiving the file`
+          )
+        ),
+      responseTimeoutMs
+    )
+  })
+  // form-data's FormData isn't a real stream.Readable, and Readable.toWeb
+  // rejects it - pipe through a PassThrough first, still fully streaming.
+  const bodyStream = new PassThrough()
+  form.on('error', (e: Error) => bodyStream.destroy(e))
+  form.pipe(bodyStream)
+  // `duplex` is required by Node's fetch (undici) for any streamed request
+  // body, but the DOM lib's RequestInit type doesn't include it - hence the
+  // intersection type.
+  const init: RequestInit & { duplex: 'half' } = {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey, ...form.getHeaders() },
+    body: Readable.toWeb(bodyStream) as ReadableStream,
+    duplex: 'half',
+    signal: controller.signal
+  }
+  let res: globalThis.Response
+  try {
+    res = await fetch(apiUrl() + '/assets', init)
+  } finally {
+    if (responseTimer) clearTimeout(responseTimer)
+  }
+  if (res.status !== 200 && res.status !== 201) {
+    throw new Error(await describeFailedResponse(res, 'asset-upload'))
+  }
+  const json = (await res.json()) as { id: string; status: 'created' | 'duplicate' }
+  if (!json.id) throw new Error('Immich returned no asset ID')
+  return { id: json.id, duplicate: json.status === 'duplicate' }
+}
+
+/**
+ * Set an asset's description (shown in Immich's info panel) - surfaces
+ * visitor captions and "Uploaded by <name>" attribution, since the
+ * ipp-upload metadata isn't visible there. Requires `asset.update`.
+ *
+ * Only call this for newly created assets - overwriting a duplicate's
+ * description would clobber what the library owner already wrote.
+ */
+// Both this and the tag call below need an API-key permission beyond the
+// core upload pair. Both are optional: on the first 403 we log once and
+// disable the feature for the process, rather than failing uploads or
+// spamming the log every file.
+let _descriptionPermissionDenied = false
+let _tagPermissionDenied = false
+
+/**
+ * Shared 403 handling: on 403, runs `onDenied` (flip the flag, log once) and
+ * tells the caller to stop. Other error handling stays at each call site.
+ */
+function isPermissionDenied(res: globalThis.Response, onDenied: () => void): boolean {
+  if (res.status !== 403) return false
+  onDenied()
+  return true
+}
+
+/**
+ * Builds a `<label> <status>: <body>` message for a non-ok Immich response,
+ * reading the body defensively (some failure responses aren't valid text/
+ * JSON at all). Callers decide whether to throw it immediately or - as
+ * addAssetsToAlbum's retry loop does - hold onto it as a candidate error.
+ */
+async function describeFailedResponse(res: globalThis.Response, label: string): Promise<string> {
+  const text = await res.text().catch(() => '')
+  return `${label} ${res.status}: ${text.slice(0, 200)}`
+}
+
+export async function updateAssetDescription(assetId: string, description: string): Promise<void> {
+  if (_descriptionPermissionDenied) return
+  const apiKey = process.env.IMMICH_API_KEY
+  if (!apiKey) throw new Error('IMMICH_API_KEY not configured')
+  const res = await fetch(apiUrl() + '/assets/' + encodeURIComponent(assetId), {
+    method: 'PUT',
+    headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description }),
+    signal: AbortSignal.timeout(15_000)
+  })
+  if (
+    isPermissionDenied(res, () => {
+      _descriptionPermissionDenied = true
+      log.warn(
+        'API key lacks the asset.update permission - captions and "Uploaded by" descriptions are disabled. Grant asset.update to enable them.'
+      )
+    })
+  ) {
+    return
+  }
+  if (!res.ok) {
+    throw new Error(await describeFailedResponse(res, 'asset-update'))
+  }
+}
+
+// Cache of tag path -> Immich tag ID, so a repeat uploader name doesn't
+// re-upsert the tag every time. Size-bounded (not a plain Map): uploaderName
+// is visitor-controlled and unique per upload, so an attacker sending a
+// fresh random name each time would otherwise grow this without limit. A
+// long TTL is fine - tag IDs are effectively permanent in Immich - an
+// eviction just costs one extra upsert call on that name's next use.
+const _uploaderTagIds = new TtlLruCache<string>({ ttlMs: 24 * 60 * 60 * 1000, max: 1000 })
+
+/**
+ * Tag an asset `uploaded-by/<name>` so the owner can filter one visitor's
+ * uploads in the Immich UI. Requires `tag.create` + `tag.asset`; self-disables
+ * on 403 (see memo above).
+ *
+ * Only call this for newly created assets - a duplicate belongs to the
+ * owner's existing library and shouldn't pick up an uploader tag.
+ */
+export async function tagAssetWithUploader(uploaderName: string, assetId: string): Promise<void> {
+  if (_tagPermissionDenied) return
+  const apiKey = process.env.IMMICH_API_KEY
+  if (!apiKey) throw new Error('IMMICH_API_KEY not configured')
+  const headers = { 'x-api-key': apiKey, 'Content-Type': 'application/json' }
+  // '/' is Immich's tag-hierarchy separator; a name containing one would
+  // silently create extra nesting levels.
+  const tagPath = 'uploaded-by/' + uploaderName.replace(/\//g, '-')
+  const markTagPermissionDenied = () => {
+    _tagPermissionDenied = true
+    log.warn(
+      'API key lacks tag permissions - per-uploader tagging is disabled. Grant tag.create and tag.asset to enable it.'
+    )
+  }
+
+  let tagId = _uploaderTagIds.get(tagPath)
+  if (!tagId) {
+    const res = await fetch(apiUrl() + '/tags', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ tags: [tagPath] }),
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (isPermissionDenied(res, markTagPermissionDenied)) return
+    if (!res.ok) {
+      throw new Error(await describeFailedResponse(res, 'tag-upsert'))
+    }
+    // Upsert returns every tag on the path (parent + leaf); match the leaf by
+    // full path, falling back to case-insensitive in case Immich matched an
+    // existing tag with different casing.
+    const tags = (await res.json()) as Array<{ id: string; value: string }>
+    const leaf =
+      tags.find(t => t.value === tagPath) ||
+      tags.find(t => t.value?.toLowerCase() === tagPath.toLowerCase())
+    if (!leaf?.id) throw new Error('tag-upsert returned no ID for ' + tagPath)
+    tagId = leaf.id
+    _uploaderTagIds.set(tagPath, tagId)
+  }
+
+  const res = await fetch(apiUrl() + '/tags/' + encodeURIComponent(tagId) + '/assets', {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ ids: [assetId] }),
+    signal: AbortSignal.timeout(15_000)
+  })
+  if (isPermissionDenied(res, markTagPermissionDenied)) return
+  if (!res.ok) {
+    // The cached tag may have been deleted in Immich; drop it so the next
+    // upload re-creates it rather than failing forever.
+    _uploaderTagIds.delete(tagPath)
+    throw new Error(await describeFailedResponse(res, 'tag-assets'))
+  }
+}
+
+/**
+ * Ask Immich which of the given SHA-1 checksums already exist as assets.
+ * Used by the pre-upload duplicate check so the client can skip the byte
+ * transfer entirely. `id` values are echoed back for correlation.
+ */
+export async function bulkUploadCheck(
+  assets: Array<{ id: string; checksum: string }>
+): Promise<Array<{ id: string; action: string; reason?: string; assetId?: string }>> {
+  const apiKey = process.env.IMMICH_API_KEY
+  if (!apiKey) throw new Error('IMMICH_API_KEY not configured')
+  const res = await fetch(apiUrl() + '/assets/bulk-upload-check', {
+    method: 'POST',
+    headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assets }),
+    signal: AbortSignal.timeout(15_000)
+  })
+  if (!res.ok) {
+    throw new Error(await describeFailedResponse(res, 'bulk-upload-check'))
+  }
+  const json = (await res.json()) as {
+    results: Array<{ id: string; action: string; reason?: string; assetId?: string }>
+  }
+  return json.results || []
+}
+
+/**
+ * Add asset IDs to an Immich album, retrying up to 3 times on network errors
+ * and 5xx responses. Does not retry 4xx (client errors won't resolve on retry).
+ * Retries prevent the "file reached Immich but not added to album" orphan state.
+ */
+export async function addAssetsToAlbum(albumId: string, assetIds: string[]): Promise<void> {
+  const apiKey = process.env.IMMICH_API_KEY
+  if (!apiKey) throw new Error('IMMICH_API_KEY not configured')
+  const url = apiUrl() + '/albums/' + encodeURIComponent(albumId) + '/assets'
+  const init = {
+    method: 'PUT',
+    headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids: assetIds })
+  }
+  let lastErr: Error | undefined
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      // Fresh signal per attempt - AbortSignal.timeout starts ticking at
+      // creation, so a shared one would count the backoff waits against it.
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) })
+      if (!res.ok) {
+        const err = new Error(await describeFailedResponse(res, 'album-add'))
+        if (res.status >= 400 && res.status < 500) throw err
+        lastErr = err
+      } else {
+        // 200 OK: check per-asset results. Errors like 'no_permission' or
+        // 'not_found' come back as HTTP 200 with success:false on the item.
+        // 'duplicate' (already in album) is treated as success.
+        type ItemResult = { id: string; success: boolean; error?: string; errorMessage?: string }
+        const items = (await res.json()) as ItemResult[]
+        const failed = items.filter(r => !r.success && r.error !== 'duplicate')
+        if (failed.length === 0) return
+        const reasons = failed
+          .map(f => `${f.id}: ${f.error ?? f.errorMessage ?? 'unknown'}`)
+          .join(', ')
+        const err = new Error(`album-add items failed: ${reasons}`)
+        // no_permission / not_found won't fix themselves - don't retry
+        const permanent = failed.every(f => f.error === 'no_permission' || f.error === 'not_found')
+        if (permanent) throw err
+        lastErr = err
+      }
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e))
+      // Rethrow errors we know won't benefit from a retry
+      if (/album-add 4|no_permission|not_found/.test(lastErr.message)) throw lastErr
+    }
+    if (attempt < 3) {
+      log.warn(`album-add attempt ${attempt} failed, retrying in ${500 * 2 ** attempt}ms`)
+      await new Promise(resolve => setTimeout(resolve, 500 * 2 ** attempt))
+    }
+  }
+  throw lastErr
+}
+
+/**
+ * Drop the share-cache entry for the given key/password/keyType combination
+ * so the next gallery load reflects freshly uploaded assets.
+ */
+export function invalidateShare(
+  key: string,
+  password: string | undefined,
+  keyType: KeyType = KeyType.key
+): void {
+  shareCache.delete(`${keyType}:${key}:${password ?? ''}`)
 }
 
 /**

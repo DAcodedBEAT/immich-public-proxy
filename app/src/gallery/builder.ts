@@ -1,6 +1,6 @@
-import { getVideoContentType, photoUrl, videoUrl } from '../immich'
+import { canUpload, getVideoContentType, isPasswordVerified, photoUrl, videoUrl } from '../immich'
 import { Response } from 'express-serve-static-core'
-import { Asset, AssetType, ImageSize, SharedLink } from '../types'
+import { Asset, AssetType, ImageSize, KeyType, SharedLink } from '../types'
 import { getConfigOption, getNumericConfigOption } from '../config/access'
 import { canDownload, expiryDate, title } from '../share'
 import { toString } from '../utils/text'
@@ -121,6 +121,18 @@ export async function gallery(res: Response, share: SharedLink, openItem?: numbe
   const metaBase = items.some(item => item.needsDetail) ? '/share/meta/' + share.key : undefined
 
   const downloadAllowed = canDownload(share)
+  // KeyType.key (not share.keyType) deliberately: uploadPath below is always
+  // built from share.key as a /share/... URL, even for a slug-accessed
+  // share, so that's what actually gets checked at upload time. share.key is
+  // Immich's own canonical key regardless of which query param resolved it -
+  // querying it back with share.keyType would send the real key as a
+  // `slug=` param for a slug-accessed share, which Immich rejects as an
+  // invalid slug (a different failure than "no password"), wrongly hiding
+  // the upload button and costing an uncached round trip on every render.
+  const uploadAllowed = canUpload(
+    share,
+    await isPasswordVerified(share.key, KeyType.key, share.password)
+  )
   // Prefer the album's owner-chosen cover for og:image; fall back to first
   // item if the cover asset has been filtered out (e.g. trashed).
   const coverId = share.album?.albumThumbnailAssetId
@@ -141,6 +153,19 @@ export async function gallery(res: Response, share: SharedLink, openItem?: numbe
     publicBaseUrl: toString(publicBaseUrl),
     path: '/share/' + share.key,
     showDownloadZip: downloadAllowed && !!getConfigOption('ipp.gallery.showDownloadZip', true),
+    showUpload: uploadAllowed,
+    uploadPath: uploadAllowed ? '/share/' + share.key + '/upload' : undefined,
+    maxFileSizeMb: uploadAllowed
+      ? Number(getConfigOption('ipp.upload.maxFileSizeMb', 500)) || 500
+      : undefined,
+    // One below the server limit (min 1, max 3) so a single visitor can't
+    // monopolize every Immich slot when others are uploading.
+    uploadConcurrency: uploadAllowed
+      ? Math.max(
+          1,
+          Math.min(3, (Number(getConfigOption('ipp.upload.concurrentUploads', 4)) || 4) - 1)
+        )
+      : undefined,
     showTitle: !!getConfigOption('ipp.gallery.showTitle', true),
     expiryDate: expiryDate(share),
     openItem,

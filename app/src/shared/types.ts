@@ -96,6 +96,40 @@ export interface MetadataConfig {
 }
 
 /**
+ * JSON body of every response from `POST /share/:key/upload`. The server
+ * builds it in `upload/handler.ts`; the client parses it in
+ * `client/upload.ts`. Exactly one of the two shapes is present:
+ * success carries `uploaded`/`assetId`/`duplicate`, failure carries `error`
+ * (plus `assetId` in the reached-Immich-but-album-add-failed case, so an
+ * admin can recover the asset manually).
+ */
+export interface UploadResponse {
+  uploaded?: number
+  assetId?: string
+  duplicate?: boolean
+  error?: string
+}
+
+/**
+ * Request body of `POST /share/:key/upload-check` - the pre-upload duplicate
+ * check. `id` is a client-side correlation value (the file's index in the
+ * batch); `checksum` is the hex SHA-1 of the file bytes (Immich's dedup hash).
+ */
+export interface UploadCheckRequest {
+  files: Array<{ id: number; checksum: string }>
+}
+
+/**
+ * Response body of `POST /share/:key/upload-check`. For `action: 'duplicate'`
+ * entries the server has ALREADY added the existing asset to the album - the
+ * client just skips the byte transfer and counts it as "already existed".
+ */
+export interface UploadCheckResponse {
+  results?: Array<{ id: number; action: 'upload' | 'duplicate' }>
+  error?: string
+}
+
+/**
  * Shape of the JSON init block embedded in `gallery.tsx` and consumed by
  * `client/init.ts`. The server writes it via `jsonForInlineScript`; the
  * client reads it via `readInitParams()`.
@@ -107,4 +141,13 @@ export interface InitParams {
   metadataConfig?: MetadataConfig
   groupByDate?: GroupByDateMode | false
   metaBase?: string
+  showUpload?: boolean
+  uploadPath?: string
+  // Server-side upload size limit, forwarded so the client can reject
+  // oversized files before wasting bandwidth (server still enforces).
+  maxFileSizeMb?: number
+  // How many parallel upload requests the client should run. Derived
+  // server-side from ipp.upload.concurrentUploads so the operator's one
+  // knob drives both sides; the server limiter remains the hard cap.
+  uploadConcurrency?: number
 }

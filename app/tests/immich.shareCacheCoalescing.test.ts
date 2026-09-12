@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getShareByKey } from '../src/immich'
+import { getShareByKey, invalidateShare } from '../src/immich'
 import { KeyType } from '../src/types'
 
 /*
@@ -115,6 +115,22 @@ describe('getShareByKey concurrent-request coalescing', () => {
     ])
 
     expect(meCalls).toBe(3)
+  })
+
+  it('a fresh call after invalidateShare hits Immich again, not the stale cache', async () => {
+    const key = uniqueKey()
+    const fetchMock = vi.fn(async () => jsonResponse(individualShare(key)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getShareByKey(key, undefined, KeyType.key)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await getShareByKey(key, undefined, KeyType.key)
+    expect(fetchMock).toHaveBeenCalledTimes(1) // still cached
+
+    invalidateShare(key, undefined, KeyType.key)
+    await getShareByKey(key, undefined, KeyType.key)
+    expect(fetchMock).toHaveBeenCalledTimes(2) // cache dropped, re-fetched
   })
 
   it('a failed upstream call is never cached, so a retry immediately re-fetches', async () => {

@@ -13,6 +13,10 @@ export interface GalleryProps {
   publicBaseUrl: string
   path: string
   showDownloadZip: boolean
+  showUpload: boolean
+  uploadPath?: string
+  maxFileSizeMb?: number
+  uploadConcurrency?: number
   showTitle: boolean
   // Formatted "available until" date shown in the subtitle, or undefined when
   // ipp.gallery.showExpiryDate is off or the share never expires.
@@ -32,7 +36,11 @@ export function Gallery(props: GalleryProps) {
     lightboxConfig: props.lightboxConfig,
     metadataConfig: props.metadataConfig,
     groupByDate: props.groupByDate,
-    metaBase: props.metaBase
+    metaBase: props.metaBase,
+    showUpload: props.showUpload,
+    uploadPath: props.uploadPath,
+    maxFileSizeMb: props.maxFileSizeMb,
+    uploadConcurrency: props.uploadConcurrency
   })
   const firstItem = props.items[0]
   // og:image prefers the album cover (passed via props); for videos, previewUrl
@@ -80,7 +88,7 @@ export function Gallery(props: GalleryProps) {
         />
       </head>
       <body>
-        {(showHeaderText || props.showDownloadZip) && (
+        {(showHeaderText || props.showDownloadZip || props.showUpload) && (
           <header id='header'>
             {showHeaderText && (
               <div class='header-text'>
@@ -94,6 +102,28 @@ export function Gallery(props: GalleryProps) {
                     </>
                   )}
                 </p>
+              </div>
+            )}
+            {props.showUpload && (
+              <div id='upload-controls'>
+                <input
+                  id='upload-name'
+                  type='text'
+                  placeholder='Your name (optional)'
+                  maxLength={100}
+                  aria-label='Your name'
+                  autocomplete='name'
+                />
+                <button
+                  id='upload-btn'
+                  type='button'
+                  title='Upload files'
+                  aria-label='Upload files'
+                >
+                  <svg viewBox='0 0 24 24' aria-hidden='true'>
+                    <path fill='currentColor' d='M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z' />
+                  </svg>
+                </button>
               </div>
             )}
             {props.showDownloadZip && (
@@ -113,7 +143,7 @@ export function Gallery(props: GalleryProps) {
         {props.description && <p id='album-description'>{props.description}</p>}
         {/* Container is intentionally empty - web.js's virtualisation manager
             populates it with only the tiles within the viewport buffer. */}
-        <div id='gallery'></div>
+        <div id='gallery' />
         {props.showDownloadZip && (
           <div id='select-toolbar' hidden>
             <button
@@ -145,6 +175,17 @@ export function Gallery(props: GalleryProps) {
             </button>
           </div>
         )}
+        {props.showUpload && (
+          <div id='upload-dropzone' hidden aria-hidden='true'>
+            <div id='upload-dropzone-inner'>
+              <svg viewBox='0 0 24 24' aria-hidden='true'>
+                <path fill='currentColor' d='M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z' />
+              </svg>
+              <p>Drop files to upload</p>
+            </div>
+          </div>
+        )}
+        {props.showUpload && <div id='upload-status' hidden role='status' aria-live='polite' />}
         {/* Init params for web.js (read at module load). Using a JSON script
             block avoids the cross-script-type coordination problems that come
             with mixing classic and module scripts. */}
@@ -153,7 +194,10 @@ export function Gallery(props: GalleryProps) {
           id='ipp-init'
           dangerouslySetInnerHTML={{ __html: initJson }}
         />
-        <script type='module' src={`/share/static/${ASSET_VERSION}/js/client/init.js`}></script>
+        <script type='module' src={`/share/static/${ASSET_VERSION}/js/client/init.js`} />
+        {props.showUpload && (
+          <script type='module' src={`/share/static/${ASSET_VERSION}/js/client/upload.js`} />
+        )}
       </body>
     </html>
   )

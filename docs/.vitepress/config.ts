@@ -51,6 +51,7 @@ export default defineConfig({
           { text: 'Gallery', link: '/config/gallery' },
           { text: 'Lightbox', link: '/config/lightbox' },
           { text: 'Metadata', link: '/config/metadata' },
+          { text: 'Uploads', link: '/uploads' },
           { text: 'Error responses', link: '/config/error-responses' },
           { text: 'Legacy config keys', link: '/config/upgrading' }
         ]

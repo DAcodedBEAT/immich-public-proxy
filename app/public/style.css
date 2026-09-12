@@ -245,7 +245,46 @@ html, body {
   opacity: 0.55;
 }
 
-#download-all {
+#download-all,
+#upload-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#upload-name {
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 20%, transparent);
+  background: transparent;
+  color: var(--color-fg);
+  font: inherit;
+  font-size: 13px;
+  width: 160px;
+  outline: none;
+  transition: border-color 0.15s, width 0.2s;
+}
+
+#upload-name:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+  width: 200px;
+}
+
+#upload-name::placeholder {
+  color: color-mix(in srgb, var(--color-fg) 40%, transparent);
+}
+
+@media (max-width: 640px) {
+  #upload-name {
+    width: 110px;
+  }
+  #upload-name:focus {
+    width: 140px;
+  }
+}
+
+#upload-btn {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -256,17 +295,306 @@ html, body {
   text-decoration: none;
   color: var(--color-fg);
   transition: background-color 0.15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 #download-all:hover,
-#download-all:focus-visible {
+#download-all:focus-visible,
+#upload-btn:hover,
+#upload-btn:focus-visible {
   background-color: color-mix(in srgb, var(--color-fg) 10%, transparent);
   outline: none;
 }
 
-#download-all svg {
+#download-all svg,
+#upload-btn svg {
   width: 22px;
   height: 22px;
+}
+
+/* ===== Upload drop zone (full-page overlay during drag) ===== */
+
+#upload-dropzone {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: color-mix(in srgb, var(--color-bg) 88%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#upload-dropzone[hidden] {
+  display: none;
+}
+
+#upload-dropzone-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 64px;
+  border: 3px dashed var(--color-primary);
+  border-radius: 16px;
+  color: var(--color-primary);
+}
+
+#upload-dropzone-inner svg {
+  width: 56px;
+  height: 56px;
+}
+
+#upload-dropzone-inner p {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+/* ===== Upload review sheet (pre-upload captions / remove) ===== */
+
+#upload-review {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: color-mix(in srgb, var(--color-fg) 40%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.upload-review-panel {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border-radius: 16px;
+  width: 560px;
+  max-width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px color-mix(in srgb, var(--color-fg) 25%, transparent);
+}
+
+.upload-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 8px;
+}
+
+.upload-review-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.upload-review-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.upload-review-close:hover {
+  background: color-mix(in srgb, var(--color-fg) 10%, transparent);
+}
+
+.upload-review-batch-caption {
+  margin: 0 20px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 20%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+.upload-review-list {
+  overflow-y: auto;
+  padding: 0 20px;
+  flex: 1;
+}
+
+.upload-review-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
+}
+
+.upload-review-thumb {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-gray);
+}
+
+.upload-review-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.upload-review-thumb-video {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  opacity: 0.6;
+}
+
+.upload-review-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.upload-review-meta {
+  font-size: 12px;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upload-review-main input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 15%, transparent);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.upload-review-remove {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  opacity: 0.6;
+}
+
+.upload-review-remove:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-fg) 10%, transparent);
+}
+
+.upload-review-footer {
+  padding: 12px 20px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.upload-review-submit {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 24px;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upload-review-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  #upload-review {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .upload-review-panel {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+/* ===== Upload status toast ===== */
+
+#upload-status {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1900;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--color-fg) 18%, transparent);
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#upload-status[hidden] {
+  display: none;
+}
+
+#upload-status button {
+  margin-left: 12px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.upload-status--progress {
+  background: color-mix(in srgb, var(--color-primary) 15%, var(--color-bg));
+  color: var(--color-primary);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+
+.upload-status--success {
+  background: color-mix(in srgb, #22c55e 15%, var(--color-bg));
+  color: #15803d;
+  border: 1px solid color-mix(in srgb, #22c55e 30%, transparent);
+}
+
+html.dark .upload-status--success {
+  color: #86efac;
+}
+
+.upload-status--error {
+  background: color-mix(in srgb, #ef4444 12%, var(--color-bg));
+  color: #b91c1c;
+  border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+}
+
+html.dark .upload-status--error {
+  color: #fca5a5;
 }
 
 #album-description {

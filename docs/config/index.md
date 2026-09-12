@@ -6,10 +6,16 @@
 Connection settings (the Immich URL, public URL, port and config file location) are
 [environment variables](/config/environment-variables). Everything else is JSON config under `ipp.*`, grouped into:
 
+> [!NOTE]
+> These are IPP's own settings and aren't gated by your Immich version. If you're unsure whether your Immich
+> instance is new enough for a given *capability* (as opposed to an IPP config option) - e.g. password-protected
+> shares or guest uploads - see [Requirements](https://github.com/alangrainger/immich-public-proxy#requirements) in the main README.
+
 - [General options](/config/ipp-options) - downloads, zoom quality, slug links, response headers.
 - [Gallery](/config/gallery) - how the gallery page is rendered.
 - [Lightbox](/config/lightbox) - the PhotoSwipe image viewer.
 - [Metadata](/config/metadata) - description / EXIF / location reveal controls.
+- [Uploads](../uploads.md) - letting visitors add photos to a shared album.
 - [Error responses](/config/error-responses) - customise what invalid requests return.
 - [Legacy config keys](/config/upgrading) - renamed keys and compatibility shims.
 

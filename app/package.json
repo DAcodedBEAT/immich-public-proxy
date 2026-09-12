@@ -24,9 +24,11 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@fastify/busboy": "^3.2.2",
     "archiver": "^7.0.1",
     "cookie-session": "^2.1.0",
     "express": "^4.21.1",
+    "form-data": "^4.0.6",
     "preact": "^10.29.2",
     "preact-render-to-string": "^6.7.0"
   },
@@ -38,6 +40,7 @@
     "@types/node": "^22",
     "concurrently": "^10.0.3",
     "fallow": "^3.17.0",
+    "jsdom": "^30.0.0",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "photoswipe": "^5.4.4",
