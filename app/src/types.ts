@@ -11,29 +11,29 @@ export enum KeyType {
 }
 
 export interface ExifInfo {
-  description?: string;
-  exifImageWidth?: number;
-  exifImageHeight?: number;
+  description?: string
+  exifImageWidth?: number
+  exifImageHeight?: number
   // EXIF orientation string ("1".."8") or null. Values 5-8 indicate the image
   // is rotated 90°/270°, so the displayed aspect ratio swaps width/height.
-  orientation?: string | null;
+  orientation?: string | null
   // Additional EXIF fields surfaced by Immich for the metadata sidebar
   // (gated server-side by ipp.showMetadata.exif.* and .location.* config).
-  dateTimeOriginal?: string | null;
-  timeZone?: string | null;
-  fileSizeInByte?: number | null;
-  make?: string | null;
-  model?: string | null;
-  lensModel?: string | null;
-  exposureTime?: string | null;
-  iso?: number | null;
-  fNumber?: number | null;
-  focalLength?: number | null;
-  city?: string | null;
-  state?: string | null;
-  country?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
+  dateTimeOriginal?: string | null
+  timeZone?: string | null
+  fileSizeInByte?: number | null
+  make?: string | null
+  model?: string | null
+  lensModel?: string | null
+  exposureTime?: string | null
+  iso?: number | null
+  fNumber?: number | null
+  focalLength?: number | null
+  city?: string | null
+  state?: string | null
+  country?: string | null
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export enum AlbumType {
@@ -42,47 +42,47 @@ export enum AlbumType {
 }
 
 export interface Asset {
-  id: string;
-  key: string;
-  keyType: KeyType;
-  originalFileName?: string;
-  originalMimeType?: string;
-  password?: string;
-  fileCreatedAt?: string; // May not exist - see https://github.com/alangrainger/immich-public-proxy/issues/61
+  id: string
+  key: string
+  keyType: KeyType
+  originalFileName?: string
+  originalMimeType?: string
+  password?: string
+  fileCreatedAt?: string // May not exist - see https://github.com/alangrainger/immich-public-proxy/issues/61
   // Timezone-agnostic "taken" timestamp (photographer's local wall-clock).
   // Immich groups its own timeline by this field. For individual shares it
   // comes straight from the asset DTO; for album grid items it is synthesised
   // from fileCreatedAt + localOffsetHours (see timelineBucketToAssets).
-  localDateTime?: string;
-  type: AssetType;
-  isTrashed: boolean;
-  exifInfo?: ExifInfo;
-  width?: number;
-  height?: number;
+  localDateTime?: string
+  type: AssetType
+  isTrashed: boolean
+  exifInfo?: ExifInfo
+  width?: number
+  height?: number
   // Base64-encoded thumbhash for tasteful blur placeholders during lazy-load
-  thumbhash?: string;
+  thumbhash?: string
   // True for album assets enumerated via the timeline API, which give us only
   // grid fields (id, type, ratio, thumbhash, isTrashed, fileCreatedAt). Their
   // exif / originalFileName / description are fetched lazily when the asset is
   // opened in the lightbox (see the `/meta/` route + client/metadata.ts).
-  needsDetail?: boolean;
+  needsDetail?: boolean
 }
 
 /**
  * Immich server version as returned by `GET /server/version`.
  */
 export interface ImmichVersion {
-  major: number;
-  minor: number;
-  patch: number;
+  major: number
+  minor: number
+  patch: number
 }
 
 /**
  * One entry of `GET /timeline/buckets` - a time bucket (month) and its count.
  */
 export interface TimelineBucket {
-  timeBucket: string;
-  count: number;
+  timeBucket: string
+  count: number
 }
 
 /**
@@ -91,43 +91,43 @@ export interface TimelineBucket {
  * the fields the gallery grid needs are typed here; Immich returns more.
  */
 export interface TimelineBucketAssets {
-  id: string[];
-  isImage: boolean[];
+  id: string[]
+  isImage: boolean[]
   // width / height ratio (Immich's `ratio` already accounts for orientation)
-  ratio: number[];
-  thumbhash: (string | null)[];
-  isTrashed: boolean[];
-  fileCreatedAt: string[];
+  ratio: number[]
+  thumbhash: (string | null)[]
+  isTrashed: boolean[]
+  fileCreatedAt: string[]
   // UTC offset (hours, may be fractional) at the time each photo was taken.
   // Applying it to fileCreatedAt yields the photographer's local time.
-  localOffsetHours: number[];
+  localOffsetHours: number[]
 }
 
 export interface SharedLink {
-  key: string;
-  keyType: KeyType;
-  type: string;
-  description?: string;
-  assets: Asset[];
-  allowDownload?: boolean;
-  showMetadata?: boolean;
-  password?: string;
+  key: string
+  keyType: KeyType
+  type: string
+  description?: string
+  assets: Asset[]
+  allowDownload?: boolean
+  showMetadata?: boolean
+  password?: string
   album?: {
-    id: string;
-    albumName?: string;
-    order?: string;
-    description?: string;
-    albumThumbnailAssetId?: string;
-    assetCount?: number;
+    id: string
+    albumName?: string
+    order?: string
+    description?: string
+    albumThumbnailAssetId?: string
+    assetCount?: number
   }
-  expiresAt: string | null;
+  expiresAt: string | null
 }
 
 export interface SharedLinkResult {
-  valid: boolean;
-  key?: string;
-  passwordRequired?: boolean;
-  link?: SharedLink;
+  valid: boolean
+  key?: string
+  passwordRequired?: boolean
+  link?: SharedLink
 }
 
 export enum ImageSize {
@@ -138,13 +138,13 @@ export enum ImageSize {
 }
 
 export interface IncomingShareRequest {
-  req: Request;
-  key: string;
-  keyType?: KeyType;
-  password?: string;
-  mode?: string;
-  size?: ImageSize;
-  range?: string;
+  req: Request
+  key: string
+  keyType?: KeyType
+  password?: string
+  mode?: string
+  size?: ImageSize
+  range?: string
 }
 
 export enum DownloadAll {

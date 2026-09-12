@@ -9,7 +9,7 @@ import { resolveImageEndpoint } from './sizing'
  * the original filename (which usually has the correct extension) is
  * preserved by `withMimeExtension`.
  */
-function mimeToExt (mime: string | undefined): string {
+function mimeToExt(mime: string | undefined): string {
   if (!mime) return ''
   const map: Record<string, string> = {
     'image/jpeg': '.jpg',
@@ -38,7 +38,7 @@ function mimeToExt (mime: string | undefined): string {
  * `.tif`/`.tiff`) are accepted as already-present so we don't produce
  * `IMG.jpeg.jpg` for an `image/jpeg` asset.
  */
-function withMimeExtension (filename: string, mime: string | undefined): string {
+function withMimeExtension(filename: string, mime: string | undefined): string {
   const ext = mimeToExt(mime)
   if (!ext) return filename
   const aliases: Record<string, string[]> = {
@@ -66,7 +66,11 @@ function withMimeExtension (filename: string, mime: string | undefined): string 
  *   doesn't map to a known extension, so an unrecognised content-type can't
  *   strip the filename's extension.
  */
-export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.original, servedMimeOverride?: string): string {
+export function getFilename(
+  asset: Asset,
+  servedSize: ImageSize = ImageSize.original,
+  servedMimeOverride?: string
+): string {
   const override = mimeToExt(servedMimeOverride) ? servedMimeOverride : undefined
   let servedMime: string | undefined
   if (override) {
@@ -92,9 +96,10 @@ export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.ori
       if (!cleanName) return withMimeExtension(asset.id, servedMime)
       // Keep the original extension only when the served bytes really are the
       // original file; a size downgrade or playback transcode replaces it.
-      const stem = servedSize === ImageSize.original && !override
-        ? cleanName
-        : cleanName.replace(/\.[a-zA-Z0-9]{2,5}$/, '')
+      const stem =
+        servedSize === ImageSize.original && !override
+          ? cleanName
+          : cleanName.replace(/\.[a-zA-Z0-9]{2,5}$/, '')
       return withMimeExtension(stem, servedMime)
     }
   }
@@ -105,6 +110,6 @@ export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.ori
  * (`/original` request) actually returns after the `maxDownloadQuality` clamp.
  * Used by both the eager (gallery builder) and lazy (`/meta/`) item paths.
  */
-export function downloadFilename (asset: Asset): string {
+export function downloadFilename(asset: Asset): string {
   return getFilename(asset, resolveImageEndpoint(ImageSize.original, asset).servedSize)
 }

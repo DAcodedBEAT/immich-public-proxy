@@ -7,7 +7,7 @@ import { Asset, AssetType, KeyType, SharedLink } from '../src/types'
 // per-item baking; it must apply the same showMetadata kill-switch and
 // ipp.showMetadata.* gating so nothing leaks that the operator didn't opt into.
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -86,15 +86,18 @@ describe('buildAssetMetadata', () => {
     [null, 4000, 3000]
   ]
 
-  it.each(exifOrientationCases)('falls back to swapped exif dimensions without asset dimensions (orientation %s)', (orientation, width, height) => {
-    setConfig({ ipp: { showMetadata: { exif: { dimensions: true } } } })
-    const photo = asset()
-    photo.exifInfo!.exifImageWidth = 4000
-    photo.exifInfo!.exifImageHeight = 3000
-    photo.exifInfo!.orientation = orientation
+  it.each(exifOrientationCases)(
+    'falls back to swapped exif dimensions without asset dimensions (orientation %s)',
+    (orientation, width, height) => {
+      setConfig({ ipp: { showMetadata: { exif: { dimensions: true } } } })
+      const photo = asset()
+      photo.exifInfo!.exifImageWidth = 4000
+      photo.exifInfo!.exifImageHeight = 3000
+      photo.exifInfo!.orientation = orientation
 
-    expect(buildAssetMetadata(photo, share()).exif).toMatchObject({ width, height })
-  })
+      expect(buildAssetMetadata(photo, share()).exif).toMatchObject({ width, height })
+    }
+  )
 
   it('returns the photo timezone only when both date and timezone are enabled', () => {
     setConfig({ ipp: { showMetadata: { exif: { dateTimeOriginal: true, timeZone: true } } } })

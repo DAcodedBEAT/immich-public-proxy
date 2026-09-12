@@ -6,7 +6,7 @@ import { join } from 'path'
  * baked in at Docker build time (see Dockerfile); falls back to package.json
  * for local dev (`npm run dev`), and finally to 'dev' if neither is readable.
  */
-function resolveVersion (): string {
+function resolveVersion(): string {
   if (process.env.APP_VERSION) return process.env.APP_VERSION
   try {
     const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'))
@@ -16,7 +16,7 @@ function resolveVersion (): string {
   }
 }
 
-export const APP_VERSION = resolveVersion()
+const APP_VERSION = resolveVersion()
 
 /** URL-safe cache-busting segment for static asset paths. */
 export const ASSET_VERSION = encodeURIComponent(APP_VERSION)

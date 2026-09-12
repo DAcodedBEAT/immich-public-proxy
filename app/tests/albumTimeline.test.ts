@@ -13,11 +13,13 @@ interface MockResponse {
   json: () => Promise<unknown>
 }
 
-function jsonResponse (body: unknown, status = 200): MockResponse {
+function jsonResponse(body: unknown, status = 200): MockResponse {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    headers: {
+      get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null)
+    },
     json: async () => body
   }
 }
@@ -52,11 +54,15 @@ const bucketResponse = {
   ratio: [1.5, 0.5, 1],
   thumbhash: ['hashA', null, 'hashC'],
   isTrashed: [false, true, false],
-  fileCreatedAt: ['2026-06-03T00:00:00.000Z', '2026-06-02T00:00:00.000Z', '2026-06-01T00:00:00.000Z'],
+  fileCreatedAt: [
+    '2026-06-03T00:00:00.000Z',
+    '2026-06-02T00:00:00.000Z',
+    '2026-06-01T00:00:00.000Z'
+  ],
   localOffsetHours: [5.5, -8, 0]
 }
 
-function routeFetch (sharedLink: unknown) {
+function routeFetch(sharedLink: unknown) {
   return vi.fn(async (url: string) => {
     if (url.includes('/shared-links/me')) return jsonResponse(sharedLink)
     if (url.includes('/timeline/buckets')) return jsonResponse(bucketsResponse)
@@ -66,9 +72,9 @@ function routeFetch (sharedLink: unknown) {
 }
 
 let keyCounter = 0
-function uniqueKey () {
+function uniqueKey() {
   // getShareByKey caches by key; a fresh key per test avoids cross-test reuse.
-  return 'album-key-' + (keyCounter++)
+  return 'album-key-' + keyCounter++
 }
 
 describe('album timeline enumeration (Immich 3.0)', () => {
@@ -106,7 +112,9 @@ describe('album timeline enumeration (Immich 3.0)', () => {
     vi.stubGlobal('fetch', fetchMock)
     await getShareByKey(uniqueKey(), undefined, KeyType.key)
 
-    const bucketCalls = fetchMock.mock.calls.map(c => String(c[0])).filter(u => u.includes('/timeline/bucket?'))
+    const bucketCalls = fetchMock.mock.calls
+      .map(c => String(c[0]))
+      .filter(u => u.includes('/timeline/bucket?'))
     expect(bucketCalls).toHaveLength(1)
     expect(new URL(bucketCalls[0]).searchParams.get('timeBucket')).toBe('2026-06-01T00:00:00.000Z')
   })
@@ -166,21 +174,27 @@ describe('album timeline enumeration (Immich 3.0)', () => {
     // isn't an array, `.filter` of undefined would reject and, unhandled,
     // exit the whole process. Treat it as an empty share instead.
     const noAssets = { type: 'INDIVIDUAL', key: 'real-key', allowDownload: true }
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.includes('/shared-links/me')) return jsonResponse(noAssets)
-      throw new Error('Unexpected fetch to ' + url)
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/shared-links/me')) return jsonResponse(noAssets)
+        throw new Error('Unexpected fetch to ' + url)
+      })
+    )
     const result = await getShareByKey(uniqueKey(), undefined, KeyType.key)
     expect(result.valid).toBe(true)
     expect(result.link!.assets).toEqual([])
   })
 
   it('is invalid (not cached empty) when timeline enumeration fails upstream', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.includes('/shared-links/me')) return jsonResponse(sharedLinkResponse())
-      if (url.includes('/timeline/buckets')) return jsonResponse({ message: 'boom' }, 500)
-      throw new Error('Unexpected fetch to ' + url)
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/shared-links/me')) return jsonResponse(sharedLinkResponse())
+        if (url.includes('/timeline/buckets')) return jsonResponse({ message: 'boom' }, 500)
+        throw new Error('Unexpected fetch to ' + url)
+      })
+    )
     const result = await getShareByKey(uniqueKey(), undefined, KeyType.key)
     expect(result.valid).toBe(false)
   })

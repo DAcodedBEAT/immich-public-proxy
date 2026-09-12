@@ -13,17 +13,20 @@ import { downloadFilename } from './filename'
  * `showMetadata` kill-switch and `ipp.showMetadata.*` gating, so the client
  * never receives anything the operator hasn't opted into.
  */
-export function buildAssetMetadata (asset: Asset, share: SharedLink): AssetMetadata {
+export function buildAssetMetadata(asset: Asset, share: SharedLink): AssetMetadata {
   // The share owner's "Show metadata" toggle is a kill-switch over the
   // operator's own config - mirrors gallery/builder.ts.
   const shareMetadataAllowed = share.showMetadata !== false
-  const descriptionInCaption = shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.caption', false)
-  const descriptionInSidebar = shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.sidebar', false)
+  const descriptionInCaption =
+    shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.caption', false)
+  const descriptionInSidebar =
+    shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.sidebar', false)
   const descriptionEnabled = descriptionInCaption || descriptionInSidebar
 
-  const description = descriptionEnabled && typeof asset?.exifInfo?.description === 'string'
-    ? asset.exifInfo.description
-    : undefined
+  const description =
+    descriptionEnabled && typeof asset?.exifInfo?.description === 'string'
+      ? asset.exifInfo.description
+      : undefined
 
   return {
     exif: shareMetadataAllowed ? pickExif(asset) : undefined,

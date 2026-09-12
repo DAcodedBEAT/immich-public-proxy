@@ -3,7 +3,12 @@
 // top-level `let`s. Layout / scroll-tuning constants live here too because
 // they are read by multiple modules. SVG icon strings live in `icons.ts`.
 
-import type { GalleryItem, LightboxConfig, MetadataConfig, GroupByDateMode } from '../shared/types.js'
+import type {
+  GalleryItem,
+  LightboxConfig,
+  MetadataConfig,
+  GroupByDateMode
+} from '../shared/types.js'
 
 // ----- layout / scroll tuning ----------------------------------------------
 
@@ -49,7 +54,7 @@ export interface GroupSpec {
 }
 
 // PhotoSwipeLightbox is an external module with no TS types in this project.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 type PhotoSwipeLightboxInstance = any
 
 export const state = {

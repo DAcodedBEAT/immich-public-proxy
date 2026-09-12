@@ -10,24 +10,36 @@ import { renderPage } from '../src/view/render'
   them must not be able to terminate that block and inject markup.
 */
 
-function galleryProps (item: Partial<GalleryItem>): GalleryProps {
+function galleryProps(item: Partial<GalleryItem>): GalleryProps {
   return {
-    items: [{
-      id: 'a',
-      type: 'IMAGE',
-      previewUrl: '/share/photo/k/a/preview',
-      thumbnailUrl: '/share/photo/k/a/thumbnail',
-      downloadFilename: 'photo.jpg',
-      ...item
-    }],
+    items: [
+      {
+        id: 'a',
+        type: 'IMAGE',
+        previewUrl: '/share/photo/k/a/preview',
+        thumbnailUrl: '/share/photo/k/a/thumbnail',
+        downloadFilename: 'photo.jpg',
+        ...item
+      }
+    ],
     title: 'Test gallery',
     description: '',
     publicBaseUrl: 'https://example.com',
     path: '/share/k',
     showDownloadZip: false,
     showTitle: false,
-    lightboxConfig: { showArrows: true, showDownload: true, mobileArrows: false, autoPlayVideos: false },
-    metadataConfig: { descriptionInCaption: false, descriptionInSidebar: false, sidebarHasContent: false, locationWebLink: false },
+    lightboxConfig: {
+      showArrows: true,
+      showDownload: true,
+      mobileArrows: false,
+      autoPlayVideos: false
+    },
+    metadataConfig: {
+      descriptionInCaption: false,
+      descriptionInSidebar: false,
+      sidebarHasContent: false,
+      locationWebLink: false
+    },
     groupByDate: false
   }
 }
@@ -42,10 +54,15 @@ describe('gallery init JSON escaping', () => {
   })
 
   it('neutralises </script> in crafted EXIF metadata', () => {
-    const html = renderPage(h(Gallery, galleryProps({
-      description: payload,
-      exif: { fileName: payload, city: payload, make: payload }
-    })))
+    const html = renderPage(
+      h(
+        Gallery,
+        galleryProps({
+          description: payload,
+          exif: { fileName: payload, city: payload, make: payload }
+        })
+      )
+    )
     expect(html).not.toContain('<script>alert(1)</script>')
   })
 

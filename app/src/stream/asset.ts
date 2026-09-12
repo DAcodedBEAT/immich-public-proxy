@@ -1,9 +1,4 @@
-import {
-  assetFetchUrl,
-  authHeadersForAsset,
-  fetchAssetDetail,
-  validateImageSize
-} from '../immich'
+import { assetFetchUrl, authHeadersForAsset, fetchAssetDetail, validateImageSize } from '../immich'
 import { Response } from 'express-serve-static-core'
 import { Asset, ImageSize, IncomingShareRequest, SharedLink } from '../types'
 import { respondToInvalidRequest } from '../invalidRequestHandler'
@@ -21,13 +16,22 @@ import { log } from '../utils/log'
  * or locked assets are handled implicitly: Immich's own endpoints refuse
  * to serve them, and the upstream failure surfaces as a client 404.
  */
-export async function assetBuffer (req: IncomingShareRequest, res: Response, asset: Asset, size?: ImageSize | string, share?: SharedLink, forceVideoPlayback = false) {
+export async function assetBuffer(
+  req: IncomingShareRequest,
+  res: Response,
+  asset: Asset,
+  size?: ImageSize | string,
+  share?: SharedLink,
+  forceVideoPlayback = false
+) {
   /*
   Abort the upstream fetch as soon as the visitor goes away, so a cancelled
   download doesn't leave Immich streaming #288.
   */
   const upstream = new AbortController()
-  const onClose = () => { if (!res.writableFinished) upstream.abort() }
+  const onClose = () => {
+    if (!res.writableFinished) upstream.abort()
+  }
   res.once('close', onClose)
   if (res.closed) onClose()
 
@@ -39,7 +43,9 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
   let servedSize: ImageSize | undefined
 
   const requested = validateImageSize(size)
-  const useVideoPlayback = forceVideoPlayback || (isVideoAsset(asset) && requested === ImageSize.original && share?.allowDownload === false)
+  const useVideoPlayback =
+    forceVideoPlayback ||
+    (isVideoAsset(asset) && requested === ImageSize.original && share?.allowDownload === false)
 
   if (useVideoPlayback) {
     subpath = '/video/playback'
@@ -67,9 +73,10 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
       const detail = await fetchAssetDetail(asset)
       if (detail?.originalMimeType) asset = { ...asset, originalMimeType: detail.originalMimeType }
     }
-    const endpoint = requested === ImageSize.original
-      ? resolveDownloadEndpoint(asset, share?.allowDownload !== false)
-      : resolveImageEndpoint(requested, asset)
+    const endpoint =
+      requested === ImageSize.original
+        ? resolveDownloadEndpoint(asset, share?.allowDownload !== false)
+        : resolveImageEndpoint(requested, asset)
     subpath = endpoint.subpath
     sizeQueryParam = endpoint.sizeQueryParam
     attachment = endpoint.attachment
@@ -80,7 +87,10 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
   const reqHeaders = await authHeadersForAsset(asset)
   let data: globalThis.Response
   try {
-    data = await fetch(url, { headers: { ...fetchHeaders, ...reqHeaders }, signal: upstream.signal })
+    data = await fetch(url, {
+      headers: { ...fetchHeaders, ...reqHeaders },
+      signal: upstream.signal
+    })
   } catch (e) {
     if (upstream.signal.aborted) return // visitor left before Immich answered
     throw e
@@ -91,8 +101,12 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     try {
       const json = await data.json()
       if (json.message) immichMessage = '\nResponse from Immich: ' + json.message
-    } catch (e) { }
-    respondToInvalidRequest(res, 404, 'Failed response from Immich for asset ' + asset.id + ' on this URL:\n' + url + immichMessage)
+    } catch (e) {}
+    respondToInvalidRequest(
+      res,
+      404,
+      'Failed response from Immich for asset ' + asset.id + ' on this URL:\n' + url + immichMessage
+    )
     return
   }
 
@@ -131,7 +145,9 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     await pipeline(readableFromWeb(data.body), res)
   } catch (e) {
     if (!isClientAbort(e)) {
-      log.warn(`Stream from Immich failed for asset ${asset.id}: ${e instanceof Error ? e.message : String(e)}`)
+      log.warn(
+        `Stream from Immich failed for asset ${asset.id}: ${e instanceof Error ? e.message : String(e)}`
+      )
     }
   }
 }
@@ -141,8 +157,12 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
  * close early (or found it already closed), or our abort signal, fired from
  * that same close, reached the fetch body first.
  */
-function isClientAbort (e: unknown): boolean {
+function isClientAbort(e: unknown): boolean {
   if (!(e instanceof Error)) return false
   const code = (e as NodeJS.ErrnoException).code
-  return code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'ERR_STREAM_UNABLE_TO_PIPE' || e.name === 'AbortError'
+  return (
+    code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+    code === 'ERR_STREAM_UNABLE_TO_PIPE' ||
+    e.name === 'AbortError'
+  )
 }

@@ -25,7 +25,7 @@ export interface GalleryProps {
   metaBase?: string
 }
 
-export function Gallery (props: GalleryProps) {
+export function Gallery(props: GalleryProps) {
   const initJson = jsonForInlineScript({
     items: props.items,
     openItem: props.openItem,
@@ -39,7 +39,9 @@ export function Gallery (props: GalleryProps) {
   // points to the .mp4, so use thumbnailUrl to keep og:image a still JPEG.
   const ogItem = props.ogImageItem || firstItem
   const ogImageAsset = ogItem
-    ? (ogItem.type === AssetType.video ? ogItem.thumbnailUrl : ogItem.previewUrl)
+    ? ogItem.type === AssetType.video
+      ? ogItem.thumbnailUrl
+      : ogItem.previewUrl
     : ''
   const ogImageUrl = ogItem ? props.publicBaseUrl + ogImageAsset : ''
   // The title block also carries the subtitle (item count + optional expiry),
@@ -47,70 +49,98 @@ export function Gallery (props: GalleryProps) {
   const showHeaderText = props.showTitle || !!props.expiryDate
 
   return (
-    <html lang="en">
+    <html lang='en'>
       <head>
-        <ThemeScript/>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <ThemeScript />
+        <meta name='viewport' content='width=device-width, initial-scale=1.0' />
         <title>{props.title}</title>
-        <meta property="og:title" content={props.title}/>
-        <meta name="twitter:title" content={props.title}/>
-        {props.description && <>
-          <meta name="description" content={props.description}/>
-          <meta property="og:description" content={props.description}/>
-          <meta property="twitter:description" content={props.description}/>
-        </>}
-        {firstItem && <>
-          <meta property="og:image" content={ogImageUrl}/>
-          <meta name="twitter:image" content={ogImageUrl}/>
-          <meta name="twitter:card" content="summary_large_image"/>
-        </>}
-        <link rel="icon" href="/share/static/favicon.ico" type="image/x-icon"/>
-        <link type="text/css" rel="stylesheet" href={`/share/static/${ASSET_VERSION}/style.css`}/>
-        <link type="text/css" rel="stylesheet" href="/share/static/photoswipe/photoswipe.css"/>
-        <link type="text/css" rel="stylesheet" href={`/share/static/${ASSET_VERSION}/photoswipe-overrides.css`}/>
+        <meta property='og:title' content={props.title} />
+        <meta name='twitter:title' content={props.title} />
+        {props.description && (
+          <>
+            <meta name='description' content={props.description} />
+            <meta property='og:description' content={props.description} />
+            <meta property='twitter:description' content={props.description} />
+          </>
+        )}
+        {firstItem && (
+          <>
+            <meta property='og:image' content={ogImageUrl} />
+            <meta name='twitter:image' content={ogImageUrl} />
+            <meta name='twitter:card' content='summary_large_image' />
+          </>
+        )}
+        <link rel='icon' href='/share/static/favicon.ico' type='image/x-icon' />
+        <link type='text/css' rel='stylesheet' href={`/share/static/${ASSET_VERSION}/style.css`} />
+        <link type='text/css' rel='stylesheet' href='/share/static/photoswipe/photoswipe.css' />
+        <link
+          type='text/css'
+          rel='stylesheet'
+          href={`/share/static/${ASSET_VERSION}/photoswipe-overrides.css`}
+        />
       </head>
       <body>
         {(showHeaderText || props.showDownloadZip) && (
-          <header id="header">
+          <header id='header'>
             {showHeaderText && (
-              <div class="header-text">
+              <div class='header-text'>
                 {props.showTitle && <h1>{props.title || 'Gallery'}</h1>}
-                <p class="subtitle">
-                  {props.items.length}{' '}
-                  {props.items.length === 1 ? 'item' : 'items'}
+                <p class='subtitle'>
+                  {props.items.length} {props.items.length === 1 ? 'item' : 'items'}
                   {props.expiryDate && (
-                    <>{' · available until '}{props.expiryDate}</>
+                    <>
+                      {' · available until '}
+                      {props.expiryDate}
+                    </>
                   )}
                 </p>
               </div>
             )}
             {props.showDownloadZip && (
-              <a id="download-all" href={props.path + '/download'} title="Download all" aria-label="Download all">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+              <a
+                id='download-all'
+                href={props.path + '/download'}
+                title='Download all'
+                aria-label='Download all'
+              >
+                <svg viewBox='0 0 24 24' aria-hidden='true'>
+                  <path fill='currentColor' d='M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z' />
                 </svg>
               </a>
             )}
           </header>
         )}
-        {props.description && (
-          <p id="album-description">{props.description}</p>
-        )}
-{/* Container is intentionally empty - web.js's virtualisation manager
+        {props.description && <p id='album-description'>{props.description}</p>}
+        {/* Container is intentionally empty - web.js's virtualisation manager
             populates it with only the tiles within the viewport buffer. */}
-        <div id="gallery"></div>
+        <div id='gallery'></div>
         {props.showDownloadZip && (
-          <div id="select-toolbar" hidden>
-            <button id="select-cancel" class="toolbar-btn" type="button" aria-label="Exit selection mode">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path fill="currentColor" d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/>
+          <div id='select-toolbar' hidden>
+            <button
+              id='select-cancel'
+              class='toolbar-btn'
+              type='button'
+              aria-label='Exit selection mode'
+            >
+              <svg viewBox='0 0 24 24' aria-hidden='true'>
+                <path
+                  fill='currentColor'
+                  d='M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z'
+                />
               </svg>
             </button>
-            <span id="select-count">0 selected</span>
-            <button id="select-all" class="toolbar-btn-text" type="button">Select all</button>
-            <button id="select-download" class="toolbar-btn" type="button" aria-label="Download selected">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path fill="currentColor" d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+            <span id='select-count'>0 selected</span>
+            <button id='select-all' class='toolbar-btn-text' type='button'>
+              Select all
+            </button>
+            <button
+              id='select-download'
+              class='toolbar-btn'
+              type='button'
+              aria-label='Download selected'
+            >
+              <svg viewBox='0 0 24 24' aria-hidden='true'>
+                <path fill='currentColor' d='M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z' />
               </svg>
             </button>
           </div>
@@ -119,11 +149,11 @@ export function Gallery (props: GalleryProps) {
             block avoids the cross-script-type coordination problems that come
             with mixing classic and module scripts. */}
         <script
-          type="application/json"
-          id="ipp-init"
+          type='application/json'
+          id='ipp-init'
           dangerouslySetInnerHTML={{ __html: initJson }}
         />
-        <script type="module" src={`/share/static/${ASSET_VERSION}/js/client/init.js`}></script>
+        <script type='module' src={`/share/static/${ASSET_VERSION}/js/client/init.js`}></script>
       </body>
     </html>
   )

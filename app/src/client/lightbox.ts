@@ -4,7 +4,7 @@
 
 // Runtime URL resolved by Express static, not a TS-resolvable module path.
 // @ts-expect-error - browser-only ESM URL
-import PhotoSwipeLightbox from '/share/static/photoswipe/photoswipe-lightbox.esm.js' // eslint-disable-line import/no-absolute-path
+import PhotoSwipeLightbox from '/share/static/photoswipe/photoswipe-lightbox.esm.js'
 
 import type { PhotoSwipeOptions } from 'photoswipe'
 import { state, SIDEBAR_WIDTH, MOBILE_BREAKPOINT } from './state.js'
@@ -24,13 +24,13 @@ import { registerLazyDetail } from './metadata.js'
  * browser bar shows a clean gallery URL after the lightbox dismisses,
  * even when the entry we land on came from a `#assetId` deep link.
  */
-function clearHashIfPresent () {
+function clearHashIfPresent() {
   if (window.location.hash) {
     history.replaceState(null, '', window.location.pathname + window.location.search)
   }
 }
 
-function parseVideoData (item: GalleryItem): { src: string, type: string } {
+function parseVideoData(item: GalleryItem): { src: string; type: string } {
   try {
     const data = JSON.parse(item.videoData || '{}')
     const source = (data.source && data.source[0]) || {}
@@ -43,8 +43,12 @@ function parseVideoData (item: GalleryItem): { src: string, type: string } {
   }
 }
 
-function escapeAttr (s: string): string {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function escapeAttr(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }
 
 // Per-slide bookkeeping for the zoom-to-upgrade + native-resolution cap, keyed
@@ -58,7 +62,7 @@ const upgradedSlides = new Set<number>() // indices already swapped to fullUrl
  * `src`/`width`/`height`; videos use the `html` slide with a `<video>`
  * element so PhotoSwipe streams from the server's `/share/video/...` URL.
  */
-function buildDataSource () {
+function buildDataSource() {
   return state.items.map((item, idx) => {
     if (item.type === 'VIDEO') {
       const v = parseVideoData(item)
@@ -66,8 +70,14 @@ function buildDataSource () {
       return {
         html:
           '<div class="pswp__video-wrap">' +
-          '<video controls playsinline poster="' + escapeAttr(item.thumbnailUrl) + '">' +
-          '<source src="' + escapeAttr(v.src) + '"' + typeAttr + '>' +
+          '<video controls playsinline poster="' +
+          escapeAttr(item.thumbnailUrl) +
+          '">' +
+          '<source src="' +
+          escapeAttr(v.src) +
+          '"' +
+          typeAttr +
+          '>' +
           '</video>' +
           '</div>'
       }
@@ -99,11 +109,11 @@ function buildDataSource () {
  *     once (if the server offered one), then recompute the cap against the new,
  *     larger bitmap to unlock deeper zoom.
  */
-function registerZoomUpgrade (lightbox: { on: (ev: string, cb: (e: any) => void) => void }) { // eslint-disable-line @typescript-eslint/no-explicit-any
-  lightbox.on('zoomLevelsUpdate', (e) => {
+function registerZoomUpgrade(lightbox: { on: (ev: string, cb: (e: any) => void) => void }) {
+  lightbox.on('zoomLevelsUpdate', e => {
     const zoomLevels = e.zoomLevels
     const idx = e.slideData?._ippIndex
-    const naturalWidth = (typeof idx === 'number') ? loadedBitmapWidth.get(idx) : undefined
+    const naturalWidth = typeof idx === 'number' ? loadedBitmapWidth.get(idx) : undefined
     const declaredWidth = zoomLevels?.elementSize?.x
     if (naturalWidth && naturalWidth > 0 && declaredWidth > 0) {
       // Display at most 1:1 with the loaded bitmap (cap = native px / declared
@@ -116,12 +126,12 @@ function registerZoomUpgrade (lightbox: { on: (ev: string, cb: (e: any) => void)
 
   // Record each image's real pixel width as it loads, then refresh that slide's
   // cap (the first zoomLevelsUpdate usually runs before the bitmap is decoded).
-  lightbox.on('loadComplete', (e) => {
+  lightbox.on('loadComplete', e => {
     if (e.content?.type === 'image') recordAndRefresh(e.content)
   })
 
   // Upgrade on zoom-in, once per slide.
-  lightbox.on('zoomPanUpdate', (e) => {
+  lightbox.on('zoomPanUpdate', e => {
     const slide = e.slide
     if (slide?.content?.type !== 'image') return
     const data = slide.content.data || {}
@@ -139,7 +149,9 @@ function registerZoomUpgrade (lightbox: { on: (ev: string, cb: (e: any) => void)
       img.addEventListener('load', () => recordAndRefresh(slide.content), { once: true })
       img.src = data.fullUrl
     })
-    hi.addEventListener('error', () => { upgradedSlides.delete(idx) }) // let a retry happen
+    hi.addEventListener('error', () => {
+      upgradedSlides.delete(idx)
+    }) // let a retry happen
     hi.src = data.fullUrl
   })
 }
@@ -149,9 +161,13 @@ function registerZoomUpgrade (lightbox: { on: (ev: string, cb: (e: any) => void)
  * calculation so the cap recomputes against that bitmap. `calculateSize()`
  * re-dispatches `zoomLevelsUpdate`, where the cap is applied.
  */
-function recordAndRefresh (content: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+function recordAndRefresh(content: any) {
   const img = content?.element
-  if (img instanceof HTMLImageElement && img.naturalWidth > 0 && typeof content.index === 'number') {
+  if (
+    img instanceof HTMLImageElement &&
+    img.naturalWidth > 0 &&
+    typeof content.index === 'number'
+  ) {
     loadedBitmapWidth.set(content.index, img.naturalWidth)
   }
   const slide = content?.slide
@@ -175,13 +191,15 @@ function recordAndRefresh (content: any) { // eslint-disable-line @typescript-es
  * lightbox, and the URL hash tracks the current slide for shareable
  * deep-links.
  */
-export function initLightbox () {
+export function initLightbox() {
   const { options = {} } = state.lightboxConfig
 
   // Full-bleed by default, the same as Immich. Reserve a bottom strip only when captions
   // are enabled, so the caption has somewhere to sit without overlapping the image.
   // Operators can override any side via ipp.lightbox.options.padding.
-  const configPadding = options.padding as Partial<Record<'top' | 'bottom' | 'left' | 'right', number>> | undefined
+  const configPadding = options.padding as
+    | Partial<Record<'top' | 'bottom' | 'left' | 'right', number>>
+    | undefined
   const showCaption = !!state.metadataConfig.descriptionInCaption
   const basePadding = {
     top: 0,
@@ -206,21 +224,21 @@ export function initLightbox () {
     zoom: false,
     close: false,
     ...options,
-    // paddingFn comes after `...options` so it always wins: PhotoSwipe gives it
-    // precedence over `padding`, and spreading it last neutralises any `padding`
-    // or (mistyped) `paddingFn` an operator put in config. Their static `padding`
-    // is still honoured above via basePadding. It lets the sidebar shrink the
-    // slide viewport when docked; on a narrow viewport the sidebar overlays
-    // instead, so we leave padding alone there.
+    // paddingFn goes after `...options` so it always wins over any `padding`
+    // (or mistyped `paddingFn`) an operator set - their static `padding` is
+    // still honoured via basePadding above. This is what lets the sidebar
+    // shrink the slide viewport when docked; on narrow viewports the sidebar
+    // overlays instead, so padding is left alone there.
     paddingFn: () => ({
       ...basePadding,
-      right: state.sidebarOpen && window.innerWidth >= MOBILE_BREAKPOINT
-        ? SIDEBAR_WIDTH + basePadding.right
-        : basePadding.right
+      right:
+        state.sidebarOpen && window.innerWidth >= MOBILE_BREAKPOINT
+          ? SIDEBAR_WIDTH + basePadding.right
+          : basePadding.right
     }),
     dataSource: buildDataSource(),
     // @ts-expect-error - runtime URL resolved by Express static
-    pswpModule: () => import('/share/static/photoswipe/photoswipe.esm.js') // eslint-disable-line import/no-absolute-path
+    pswpModule: () => import('/share/static/photoswipe/photoswipe.esm.js')
   }
 
   state.lightbox = new PhotoSwipeLightbox(lightboxOptions)
@@ -300,31 +318,34 @@ export function initLightbox () {
   // fires contentActivate/contentDeactivate as slides become / stop being the
   // current slide, including the initial slide on open.
   if (state.lightboxConfig.autoPlayVideos) {
-    state.lightbox.on('contentActivate', ({ content }: { content: { element?: HTMLElement, slide?: { isActive: boolean } } }) => {
-      const video = content.element?.querySelector('video')
-      if (!video) return
-      // Brief delay so PhotoSwipe finishes attaching the video to the DOM
-      // (deferred until the opening animation completes) - calling play()
-      // synchronously gets interrupted by the attach and rejects with an
-      // AbortError.
-      setTimeout(() => {
-        if (!content.slide?.isActive) return
-        video.play().catch((err: Error) => {
-          if (err.name === 'NotAllowedError') {
-            // The browser blocked unmuted autoplay without a user gesture
-            // (e.g. a deep link straight to a video slide) - retry muted.
-            video.muted = true
-            video.play().catch(() => {})
-          } else if (err.name === 'AbortError' && content.slide?.isActive) {
-            // A pending play() was interrupted, e.g. by our contentDeactivate
-            // pause rejecting it while the video was still buffering. Only
-            // retry if the slide is still current, so we never resume audio
-            // behind a different slide.
-            video.play().catch(() => {})
-          }
-        })
-      }, 50)
-    })
+    state.lightbox.on(
+      'contentActivate',
+      ({ content }: { content: { element?: HTMLElement; slide?: { isActive: boolean } } }) => {
+        const video = content.element?.querySelector('video')
+        if (!video) return
+        // Brief delay so PhotoSwipe finishes attaching the video to the DOM
+        // (deferred until the opening animation completes) - calling play()
+        // synchronously gets interrupted by the attach and rejects with an
+        // AbortError.
+        setTimeout(() => {
+          if (!content.slide?.isActive) return
+          video.play().catch((err: Error) => {
+            if (err.name === 'NotAllowedError') {
+              // The browser blocked unmuted autoplay without a user gesture
+              // (e.g. a deep link straight to a video slide) - retry muted.
+              video.muted = true
+              video.play().catch(() => {})
+            } else if (err.name === 'AbortError' && content.slide?.isActive) {
+              // A pending play() was interrupted, e.g. by our contentDeactivate
+              // pause rejecting it while the video was still buffering. Only
+              // retry if the slide is still current, so we never resume audio
+              // behind a different slide.
+              video.play().catch(() => {})
+            }
+          })
+        }, 50)
+      }
+    )
   }
 
   // Pause and rewind videos when sliding away so audio doesn't bleed into
@@ -350,7 +371,7 @@ export function initLightbox () {
  * Open the lightbox to the item at `index` (0-based into `state.items`).
  * No-op if the lightbox hasn't been initialised yet.
  */
-export function openLightbox (index: number) {
+export function openLightbox(index: number) {
   if (state.lightbox) state.lightbox.loadAndOpen(index)
 }
 
@@ -362,7 +383,7 @@ export function openLightbox (index: number) {
  * the tile is genuinely off-screen, so closing on a still-visible tile
  * doesn't jiggle the page.
  */
-function scrollToCurrentSlide (index: number) {
+function scrollToCurrentSlide(index: number) {
   if (!state.container || index == null || !state.layout[index]) return
   const entry = state.layout[index]
   const containerTop = state.container.getBoundingClientRect().top + window.scrollY

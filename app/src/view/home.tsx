@@ -1,12 +1,13 @@
-export function Home () {
+export function Home() {
   return (
-    <html lang="en">
+    <html lang='en'>
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-        <title></title>
-        <link rel="icon" href="/share/static/favicon.ico" type="image/x-icon"/>
-        <style dangerouslySetInnerHTML={{
-          __html: `
+        <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0' />
+        <title />
+        <link rel='icon' href='/share/static/favicon.ico' type='image/x-icon' />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
             html, body {
               margin: 0;
               height: 100vh;
@@ -23,12 +24,13 @@ export function Home () {
               opacity: 0.3;
             }
           `
-        }}/>
+          }}
+        />
       </head>
       <body>
-        <div class="container">
-          <a href="https://github.com/alangrainger/immich-public-proxy">
-            <img src="/share/static/images/ipp.svg" alt=""/>
+        <div class='container'>
+          <a href='https://github.com/alangrainger/immich-public-proxy'>
+            <img src='/share/static/images/ipp.svg' alt='' />
           </a>
         </div>
       </body>

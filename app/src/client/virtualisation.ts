@@ -19,7 +19,7 @@ import { createTile } from './tiles.js'
  * The buffer is what lets tiles fade in just before they scroll into view
  * instead of popping in at the edge.
  */
-function getVisibleRange () {
+function getVisibleRange() {
   if (!state.container) return { top: 0, bottom: 0 }
   const containerTop = state.container.getBoundingClientRect().top
   const viewportTopInContainer = -containerTop
@@ -31,7 +31,7 @@ function getVisibleRange () {
   }
 }
 
-function createHeader (header: HeaderEntry): HTMLElement {
+function createHeader(header: HeaderEntry): HTMLElement {
   const el = document.createElement('h2')
   el.className = 'group-header'
   el.style.top = header.top + 'px'
@@ -44,7 +44,7 @@ function createHeader (header: HeaderEntry): HTMLElement {
  * headers that should now be on screen, remove ones that have scrolled out.
  * Idempotent; safe to call multiple times per frame (scroll handler does).
  */
-export function virtualize () {
+function virtualize() {
   if (!state.container || !state.layout.length) return
   const { top, bottom } = getVisibleRange()
 
@@ -65,7 +65,7 @@ export function virtualize () {
     if (h.top > bottom) break
     neededHeaders.add(h.label)
   }
-  syncRendered(neededHeaders, state.renderedHeaders, (label) => {
+  syncRendered(neededHeaders, state.renderedHeaders, label => {
     const h = state.headers.find(x => x.label === label)
     return h ? createHeader(h) : null
   })
@@ -80,7 +80,7 @@ export function virtualize () {
  * (e.g. a stale header label that no longer matches any layout entry); in
  * that case nothing is added for the key and the Map is left alone.
  */
-function syncRendered<K> (
+function syncRendered<K>(
   needed: Set<K>,
   rendered: Map<K, HTMLElement>,
   create: (key: K) => HTMLElement | null
@@ -109,7 +109,7 @@ function syncRendered<K> (
  *
  * Called from the ResizeObserver in init.ts.
  */
-export function computeLayoutAndRender () {
+export function computeLayoutAndRender() {
   if (!state.container) return
   const containerW = state.container.clientWidth
   if (containerW <= 0) return
@@ -142,7 +142,7 @@ export function computeLayoutAndRender () {
  *
  * Run after scroll has settled, not on every scroll tick.
  */
-export function loadVisibleTiles () {
+function loadVisibleTiles() {
   if (!state.container) return
   const vpHeight = window.innerHeight
   const containerTop = state.container.getBoundingClientRect().top
@@ -151,8 +151,8 @@ export function loadVisibleTiles () {
     if (!(img instanceof HTMLImageElement)) continue
     const aTopInVp = containerTop + parseFloat(a.style.top || '0')
     const aHeight = parseFloat(a.style.height || '0')
-    const isFar = aTopInVp + aHeight < -IMAGE_LOAD_MARGIN_PX ||
-      aTopInVp > vpHeight + IMAGE_LOAD_MARGIN_PX
+    const isFar =
+      aTopInVp + aHeight < -IMAGE_LOAD_MARGIN_PX || aTopInVp > vpHeight + IMAGE_LOAD_MARGIN_PX
     if (isFar) {
       if (img.src && !img.complete) {
         img.dataset.src = img.src
@@ -173,7 +173,7 @@ let loadTimer: ReturnType<typeof setTimeout> | null = null
  * frame and debounces the more expensive image-src lifecycle by
  * SCROLL_SETTLE_MS so we don't thrash `img.src` during fast flings.
  */
-export function onScroll () {
+export function onScroll() {
   if (scrollFrame == null) {
     scrollFrame = requestAnimationFrame(() => {
       scrollFrame = null

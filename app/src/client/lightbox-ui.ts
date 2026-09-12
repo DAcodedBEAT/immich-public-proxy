@@ -16,7 +16,7 @@ interface PswpUiElementConfig {
   ariaLabel?: string
   appendTo?: string
   html?: string
-  // eslint-disable-next-line no-use-before-define
+
   onInit?: (el: HTMLElement, pswp: PswpInstance) => void
 }
 
@@ -30,7 +30,6 @@ interface PswpInstance {
   close: () => void
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LightboxInstance = any
 
 /**
@@ -40,7 +39,7 @@ type LightboxInstance = any
  * the toolbar. The default PhotoSwipe close button is hidden via CSS in
  * `photoswipe-overrides.css`.
  */
-export function registerBackButton (lightbox: LightboxInstance) {
+export function registerBackButton(lightbox: LightboxInstance) {
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({
       name: 'back-button',
@@ -63,7 +62,7 @@ export function registerBackButton (lightbox: LightboxInstance) {
  * Caller is responsible for only invoking this when
  * `metadataConfig.descriptionInCaption` is true.
  */
-export function registerCaption (lightbox: LightboxInstance) {
+export function registerCaption(lightbox: LightboxInstance) {
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({
       name: 'caption',
@@ -91,7 +90,7 @@ export function registerCaption (lightbox: LightboxInstance) {
  * Register the download button. Only called when the share allows downloads
  * AND the config enables the lightbox button.
  */
-export function registerDownloadButton (lightbox: LightboxInstance) {
+export function registerDownloadButton(lightbox: LightboxInstance) {
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({
       name: 'download-button',
@@ -127,7 +126,7 @@ export function registerDownloadButton (lightbox: LightboxInstance) {
  * Register the fullscreen toggle. Skipped on browsers without Fullscreen API
  * support for arbitrary elements (notably iOS Safari on iPhone).
  */
-export function registerFullscreenButton (lightbox: LightboxInstance) {
+export function registerFullscreenButton(lightbox: LightboxInstance) {
   if (!document.fullscreenEnabled) return
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({

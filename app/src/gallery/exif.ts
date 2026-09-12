@@ -16,7 +16,7 @@ interface FieldRule {
  * Trivial copy: `out[key] = info[key]` when present. Used for fields where
  * the config flag, source key, and output key all match.
  */
-function copy (key: keyof ExifInfo & keyof GalleryExif): FieldRule {
+function copy(key: keyof ExifInfo & keyof GalleryExif): FieldRule {
   return {
     flag: key,
     emit: (out, info) => {
@@ -39,7 +39,7 @@ const FLIPPED_ORIENTATIONS = [5, 6, 90, 7, 8, -90]
  * An asset's dimensions as displayed. Prefers the asset-level width/height,
  * which Immich provides orientation-corrected from 3.0.0
  */
-export function displayDimensions (asset: Asset): { width?: number, height?: number } {
+export function displayDimensions(asset: Asset): { width?: number; height?: number } {
   if (asset.width && asset.height) return { width: asset.width, height: asset.height }
 
   // Fallback for Immich 2.x
@@ -67,8 +67,13 @@ export function displayDimensions (asset: Asset): { width?: number, height?: num
       `enabled: true` users).
 */
 const EXIF_FIELDS = [
-  'make', 'model', 'lensModel',
-  'exposureTime', 'iso', 'fNumber', 'focalLength'
+  'make',
+  'model',
+  'lensModel',
+  'exposureTime',
+  'iso',
+  'fNumber',
+  'focalLength'
 ] as const
 
 const LOCATION_FIELDS = ['city', 'state', 'country'] as const
@@ -139,7 +144,7 @@ const RULES: Record<Group, FieldRule[]> = {
  * The server never sends Immich values that the operator hasn't opted in
  * to via config; the client just renders what's present.
  */
-export function pickExif (asset: Asset): GalleryExif | undefined {
+export function pickExif(asset: Asset): GalleryExif | undefined {
   const exifInfo = asset?.exifInfo
   if (!exifInfo) return undefined
 
@@ -158,16 +163,16 @@ export function pickExif (asset: Asset): GalleryExif | undefined {
  * explicitly set to `true` in config. Used by the sidebar visibility
  * check.
  */
-export function metadataGroupActive (group: Group): boolean {
+export function metadataGroupActive(group: Group): boolean {
   return RULES[group].some(rule => fieldFlag(group, rule.flag))
 }
 
-function applyRules (group: Group, out: GalleryExif, info: ExifInfo, asset: Asset): void {
+function applyRules(group: Group, out: GalleryExif, info: ExifInfo, asset: Asset): void {
   for (const rule of RULES[group]) {
     if (fieldFlag(group, rule.flag)) rule.emit(out, info, asset)
   }
 }
 
-function fieldFlag (group: Group, flag: string): boolean {
+function fieldFlag(group: Group, flag: string): boolean {
   return !!getConfigOption(`ipp.showMetadata.${group}.${flag}`, false)
 }

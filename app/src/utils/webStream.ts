@@ -8,7 +8,7 @@ import { Readable } from 'stream'
  * are structurally compatible at runtime but TS sees them as distinct
  * nominal types, so a cast is needed.
  */
-export function readableFromWeb (body: ReadableStream<Uint8Array>): Readable {
+export function readableFromWeb(body: ReadableStream<Uint8Array>): Readable {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return Readable.fromWeb(body as any)
 }

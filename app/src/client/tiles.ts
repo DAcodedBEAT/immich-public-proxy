@@ -3,14 +3,14 @@
 
 // Runtime URL resolved by Express static, not a TS-resolvable module path.
 // @ts-expect-error - browser-only ESM URL
-import { thumbHashToDataURL } from '/share/static/thumbhash/thumbhash.js' // eslint-disable-line import/no-absolute-path
+import { thumbHashToDataURL } from '/share/static/thumbhash/thumbhash.js'
 
 import { state, LONG_PRESS_MS } from './state.js'
 import { CHECK_SVG } from './icons.js'
 import { enterSelectMode, toggleSelection } from './selection.js'
 import { openLightbox } from './lightbox.js'
 
-function onThumbError (this: HTMLImageElement) {
+function onThumbError(this: HTMLImageElement) {
   this.closest('a')?.classList.add('thumb-error')
 }
 
@@ -18,7 +18,7 @@ function onThumbError (this: HTMLImageElement) {
 // tile-creations (revisits during virtualisation) reuses the same URL.
 const thumbhashCache = new Map<string, string | null>()
 
-function decodeThumbhash (base64: string): string | null {
+function decodeThumbhash(base64: string): string | null {
   const cached = thumbhashCache.get(base64)
   if (cached !== undefined) return cached
   try {
@@ -46,7 +46,7 @@ function decodeThumbhash (base64: string): string | null {
  * Click opens the lightbox unless selection mode is active, in which case
  * it toggles the item's selection.
  */
-export function createTile (index: number): HTMLAnchorElement {
+export function createTile(index: number): HTMLAnchorElement {
   const item = state.items[index]
   const l = state.layout[index]
   const a = document.createElement('a')
@@ -88,7 +88,7 @@ export function createTile (index: number): HTMLAnchorElement {
     const check = document.createElement('div')
     check.className = 'tile-check'
     check.innerHTML = CHECK_SVG
-    check.addEventListener('click', (e) => {
+    check.addEventListener('click', e => {
       e.preventDefault()
       e.stopPropagation()
       if (!state.selectMode) enterSelectMode()
@@ -99,7 +99,7 @@ export function createTile (index: number): HTMLAnchorElement {
     attachLongPress(a, item.id)
   }
 
-  a.addEventListener('click', (e) => {
+  a.addEventListener('click', e => {
     e.preventDefault()
     if (state.selectMode) {
       toggleSelection(item.id)
@@ -117,13 +117,16 @@ export function createTile (index: number): HTMLAnchorElement {
  * scroll gesture doesn't trigger it) and suppresses the synthetic click
  * that follows a successful long-press (so the lightbox doesn't open).
  */
-function attachLongPress (tile: HTMLAnchorElement, id: string) {
+function attachLongPress(tile: HTMLAnchorElement, id: string) {
   let timer: ReturnType<typeof setTimeout> | null = null
   let pressed = false
   const cancel = () => {
-    if (timer) { clearTimeout(timer); timer = null }
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
   }
-  tile.addEventListener('pointerdown', (e) => {
+  tile.addEventListener('pointerdown', e => {
     // Ignore right/middle clicks
     if (e.button !== undefined && e.button !== 0) return
     pressed = false
@@ -137,17 +140,21 @@ function attachLongPress (tile: HTMLAnchorElement, id: string) {
   tile.addEventListener('pointerup', cancel)
   tile.addEventListener('pointercancel', cancel)
   tile.addEventListener('pointerleave', cancel)
-  tile.addEventListener('pointermove', (e) => {
+  tile.addEventListener('pointermove', e => {
     // Cancel long-press if pointer moves significantly (scroll, drag)
     if (Math.abs(e.movementX) + Math.abs(e.movementY) > 6) cancel()
   })
   // Swallow the synthetic click that follows a successful long-press so it
   // doesn't open the lightbox.
-  tile.addEventListener('click', (e) => {
-    if (pressed) {
-      pressed = false
-      e.preventDefault()
-      e.stopImmediatePropagation()
-    }
-  }, true)
+  tile.addEventListener(
+    'click',
+    e => {
+      if (pressed) {
+        pressed = false
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    },
+    true
+  )
 }
