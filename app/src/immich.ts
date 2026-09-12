@@ -11,11 +11,12 @@ import {
   TimelineBucket,
   TimelineBucketAssets
 } from './types'
-import dayjs from 'dayjs'
 import { getConfigOption } from './config/access'
 import { addResponseHeaders } from './http'
 import { canDownload } from './share'
 import { log } from './utils/log'
+import { logAbuse } from './utils/abuseLog'
+import { createLimiter } from './utils/limiter'
 import { assetBuffer } from './stream/asset'
 import { downloadAll } from './stream/download'
 import { gallery } from './gallery/builder'
@@ -79,11 +80,11 @@ const assetDetailCache = new TtlLruCache<Promise<Asset | undefined>>({ ttlMs: 12
  * cache stays storage-only; the eviction rule lives here, once, instead of
  * being hand-copied at each call site.
  */
-function cachedPromise<T> (
+function cachedPromise<T>(
   cache: TtlLruCache<Promise<T>>,
   key: string,
   factory: () => Promise<T>,
-  isValid: (value: T) => boolean = (value) => !!value
+  isValid: (value: T) => boolean = value => !!value
 ): Promise<T> {
   const cached = cache.get(key)
   if (cached) return cached
@@ -91,8 +92,12 @@ function cachedPromise<T> (
   const promise = factory()
   cache.set(key, promise)
   promise.then(
-    (value) => { if (!isValid(value)) cache.delete(key) },
-    () => { cache.delete(key) }
+    value => {
+      if (!isValid(value)) cache.delete(key)
+    },
+    () => {
+      cache.delete(key)
+    }
   )
   return promise
 }
@@ -101,7 +106,7 @@ function cachedPromise<T> (
  * Make a request to Immich API. We're not using the SDK to limit
  * the possible attack surface of this app.
  */
-export async function request (endpoint: string, init?: RequestInit) {
+async function request(endpoint: string, init?: RequestInit) {
   try {
     const res = await fetch(apiUrl() + endpoint, init)
     if (res.status === 200) {
@@ -117,12 +122,16 @@ export async function request (endpoint: string, init?: RequestInit) {
     }
   } catch (e) {
     log('Unable to reach Immich on ' + process.env.IMMICH_URL)
-    log(`From the container IPP is running in, run this and check you receive a JSON result: node -e "fetch('${apiUrl()}/server/ping').then(r => r.text()).then(console.log).catch(console.error)"`)
-    log('Avoid testing with curl - curl uses its own DNS resolver and can succeed even when the resolver Node/IPP uses (musl getaddrinfo) fails. See https://github.com/alangrainger/immich-public-proxy/issues/263')
+    log(
+      `From the container IPP is running in, run this and check you receive a JSON result: node -e "fetch('${apiUrl()}/server/ping').then(r => r.text()).then(console.log).catch(console.error)"`
+    )
+    log(
+      'Avoid testing with curl - curl uses its own DNS resolver and can succeed even when the resolver Node/IPP uses (musl getaddrinfo) fails. See https://github.com/alangrainger/immich-public-proxy/issues/263'
+    )
   }
 }
 
-export function apiUrl () {
+function apiUrl() {
   return (process.env.IMMICH_URL || '').replace(/\/*$/, '') + '/api'
 }
 
@@ -136,7 +145,7 @@ export function apiUrl () {
  * 401 - the visitor provided a password but it was invalid.
  * 404 - any other failed request. Check console.log for details.
  */
-export async function handleShareRequest (req: IncomingShareRequest, res: Response) {
+export async function handleShareRequest(req: IncomingShareRequest, res: Response) {
   addResponseHeaders(res)
 
   // Check that the key is a valid format
@@ -156,6 +165,7 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
   // A password is required, but the visitor-provided one doesn't match
   if (sharedLinkRes.passwordRequired && req.password) {
     log('Invalid password for key ' + req.key)
+    if (req.req) logAbuse('invalid-password', req.req, `key=${req.key.slice(0, 8)}`)
     res.status(401)
     // Delete the cookie-session data, so that it doesn't keep saying "Invalid password"
     if (req.req?.session) delete req.req.session[req.key]
@@ -172,10 +182,14 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
   if (sharedLinkRes.passwordRequired) {
     // `req.key` is already sanitised at this point, but it never hurts to be explicit
     const shareKey = req.key.replace(/[^\w-]/g, '')
-    res.send(renderPage(h(Password, {
-      shareKey,
-      notifyInvalidPassword: !!req.password
-    })))
+    res.send(
+      renderPage(
+        h(Password, {
+          shareKey,
+          notifyInvalidPassword: !!req.password
+        })
+      )
+    )
     return
   }
 
@@ -187,10 +201,12 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
 
   // If this was a password-protected slug link, we need to also store session information for the ID-based key
   if (req.password && req.req.session && !req.req.session[link.key]) {
-    req.req.session[link.key] = encrypt(JSON.stringify({
-      password: req.password,
-      expires: dayjs().add(1, 'hour').format()
-    }))
+    req.req.session[link.key] = encrypt(
+      JSON.stringify({
+        password: req.password,
+        expires: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+      })
+    )
   }
 
   // Everything is ok - output the shared link data
@@ -204,8 +220,10 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
     const asset = link.assets[0]
     // Photos default to a direct image unless `singleImage` opts into a gallery;
     // videos default to a gallery unless `singleVideo` is explicitly disabled.
-    const directImage = asset.type === AssetType.image && !getConfigOption('ipp.gallery.singleImage')
-    const directVideo = asset.type === AssetType.video && !getConfigOption('ipp.gallery.singleVideo', true)
+    const directImage =
+      asset.type === AssetType.image && !getConfigOption('ipp.gallery.singleImage')
+    const directVideo =
+      asset.type === AssetType.video && !getConfigOption('ipp.gallery.singleVideo', true)
     if ((directImage || directVideo) && !req.password) {
       // Output the asset directly rather than a gallery page, unless it's a
       // password-protected link
@@ -232,11 +250,46 @@ export async function handleShareRequest (req: IncomingShareRequest, res: Respon
  * Negative results (`valid: false`) and rejections are dropped from the
  * cache immediately so a transient Immich blip doesn't poison the cache.
  */
-export function getShareByKey (key: string, password?: string, keyType: KeyType = KeyType.key): Promise<SharedLinkResult> {
+export function getShareByKey(
+  key: string,
+  password?: string,
+  keyType: KeyType = KeyType.key
+): Promise<SharedLinkResult> {
   const cacheKey = `${keyType}:${key}:${password ?? ''}`
   // A `{ valid: false }` result is a truthy object, so the default eviction
   // rule wouldn't drop it - key off `.valid` explicitly.
-  return cachedPromise(shareCache, cacheKey, () => fetchShareByKey(key, password, keyType), (result) => !!result?.valid)
+  return cachedPromise(
+    shareCache,
+    cacheKey,
+    // Only the uncached path goes through the limiter - a cache hit
+    // resolves cachedPromise's cached Promise directly, never reaching this
+    // factory at all, so warm requests are never throttled by it.
+    () => getShareResolutionLimiter()(() => fetchShareByKey(key, password, keyType)),
+    result => !!result?.valid
+  )
+}
+
+// Bounds concurrent *uncached* share resolutions - the only thing standing
+// between a burst of requests for made-up/nonexistent keys and an unbounded
+// pile of uncached round trips against your private Immich (an album share
+// costs 1 + N_bucket requests each, not just one). Deliberately does NOT
+// wrap getShareByKey itself: cache hits are free and must stay fast even
+// under heavy load, only genuine misses need bounding. A per-key negative
+// cache would not help here - a fresh made-up key never repeats, so nothing
+// would ever be a cache hit to defend.
+//
+// Sized more generously than a typical upload-style limiter would be: share
+// *viewing* is this app's primary, high-volume traffic - a real event can
+// have dozens of guests opening the same album link within seconds, all
+// needing a fast first (uncached) resolution. Configurable so an operator
+// expecting an unusually large simultaneous audience can raise it.
+let _shareResolutionLimiter: ReturnType<typeof createLimiter> | undefined
+export function getShareResolutionLimiter(): ReturnType<typeof createLimiter> {
+  if (!_shareResolutionLimiter) {
+    const n = Math.max(1, Number(getConfigOption('ipp.shareResolutionConcurrency', 30)) || 30)
+    _shareResolutionLimiter = createLimiter(n)
+  }
+  return _shareResolutionLimiter
 }
 
 /**
@@ -245,7 +298,11 @@ export function getShareByKey (key: string, password?: string, keyType: KeyType 
  * outside the module - going through getShareByKey is what gives us the
  * coalescing on cold misses.
  */
-async function fetchShareByKey (key: string, password?: string, keyType: KeyType = KeyType.key): Promise<SharedLinkResult> {
+async function fetchShareByKey(
+  key: string,
+  password?: string,
+  keyType: KeyType = KeyType.key
+): Promise<SharedLinkResult> {
   let link
   const url = buildUrl(apiUrl() + '/shared-links/me', {
     [keyType]: key
@@ -287,7 +344,7 @@ async function fetchShareByKey (key: string, password?: string, keyType: KeyType
         }
 
         link.password = password
-        if (link.expiresAt && dayjs(link.expiresAt) < dayjs()) {
+        if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
           // This link has expired
           log('Expired link ' + key)
         } else {
@@ -319,7 +376,10 @@ async function fetchShareByKey (key: string, password?: string, keyType: KeyType
       } else if (res.status === 401) {
         // Immich returns 401 for both invalid keys and password-protected shares.
         // Check the message to distinguish between the two cases.
-        if (jsonBody?.message === 'Invalid share key' || jsonBody?.message === 'Invalid share slug') {
+        if (
+          jsonBody?.message === 'Invalid share key' ||
+          jsonBody?.message === 'Invalid share slug'
+        ) {
           // Known invalid key/slug - treat as invalid request
           log('Invalid share key ' + key)
         } else {
@@ -360,7 +420,7 @@ const TIMELINE_BASE_EDGE = 1600
  * Turn an Immich timeline `ratio` (width / height, already orientation-aware)
  * into concrete pixel dimensions whose longest edge is TIMELINE_BASE_EDGE.
  */
-function ratioToDimensions (ratio: number): { width: number, height: number } {
+function ratioToDimensions(ratio: number): { width: number; height: number } {
   if (!ratio || ratio <= 0 || !isFinite(ratio)) {
     return { width: TIMELINE_BASE_EDGE, height: TIMELINE_BASE_EDGE }
   }
@@ -381,7 +441,10 @@ function ratioToDimensions (ratio: number): { width: number, height: number } {
  * time portion reads as the photographer's local wall-clock (the `Z` suffix is
  * nominal, as with Immich's own `localDateTime`). Undefined if no timestamp.
  */
-export function localDateTimeFromOffset (fileCreatedAt?: string, offsetHours?: number): string | undefined {
+export function localDateTimeFromOffset(
+  fileCreatedAt?: string,
+  offsetHours?: number
+): string | undefined {
   if (!fileCreatedAt) return undefined
   // The timeline bucket API serialises fileCreatedAt as a zone-less UTC
   // string ('2024-12-11T07:41:54'). Date.parse treats a zone-less date-time
@@ -393,7 +456,7 @@ export function localDateTimeFromOffset (fileCreatedAt?: string, offsetHours?: n
   return new Date(ms + (offsetHours || 0) * 3600_000).toISOString()
 }
 
-function timelineBucketToAssets (bucket: TimelineBucketAssets): Asset[] {
+function timelineBucketToAssets(bucket: TimelineBucketAssets): Asset[] {
   const assets: Asset[] = []
   const count = bucket?.id?.length || 0
   for (let i = 0; i < count; i++) {
@@ -428,7 +491,7 @@ function timelineBucketToAssets (bucket: TimelineBucketAssets): Asset[] {
  * bucket comes back empty - every album shows zero photos #260. The explicit
  * `T00:00:00.000Z` form is what Immich's web client sends: (immich-app/immich#22672).
  */
-export function utcBucketKey (timeBucket: string): string {
+export function utcBucketKey(timeBucket: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(timeBucket) ? timeBucket + 'T00:00:00.000Z' : timeBucket
 }
 
@@ -445,34 +508,83 @@ export function utcBucketKey (timeBucket: string): string {
  * album. Never throws - a rejection here would surface as an unhandled
  * rejection and take the process down.
  */
-async function fetchAlbumAssets (albumId: string, keyType: KeyType, key: string, headers: Record<string, string>): Promise<Asset[] | null> {
+async function fetchAlbumAssets(
+  albumId: string,
+  keyType: KeyType,
+  key: string,
+  headers: Record<string, string>
+): Promise<Asset[] | null> {
   try {
-    const bucketsRes = await fetch(buildUrl(apiUrl() + '/timeline/buckets', {
-      albumId,
-      [keyType]: key
-    }), { headers })
+    const bucketsRes = await fetch(
+      buildUrl(apiUrl() + '/timeline/buckets', {
+        albumId,
+        [keyType]: key
+      }),
+      { headers }
+    )
     if (!bucketsRes.ok) {
-      log('Failed to list timeline buckets for album ' + albumId + ' (status ' + bucketsRes.status + ')')
+      log(
+        'Failed to list timeline buckets for album ' +
+          albumId +
+          ' (status ' +
+          bucketsRes.status +
+          ')'
+      )
       return null
     }
-    const buckets = await bucketsRes.json() as TimelineBucket[]
-    const perBucket = await Promise.all((buckets || []).map(async (bucket) => {
-      const res = await fetch(buildUrl(apiUrl() + '/timeline/bucket', {
-        albumId,
-        timeBucket: utcBucketKey(bucket.timeBucket),
-        [keyType]: key
-      }), { headers })
-      if (!res.ok) {
-        log('Failed to fetch timeline bucket ' + bucket.timeBucket + ' for album ' + albumId + ' (status ' + res.status + ')')
-        return null
-      }
-      return timelineBucketToAssets(await res.json() as TimelineBucketAssets)
-    }))
+    const buckets = (await bucketsRes.json()) as TimelineBucket[]
+    const perBucket = await Promise.all(
+      (buckets || []).map(async bucket => {
+        const res = await fetch(
+          buildUrl(apiUrl() + '/timeline/bucket', {
+            albumId,
+            timeBucket: utcBucketKey(bucket.timeBucket),
+            [keyType]: key
+          }),
+          { headers }
+        )
+        if (!res.ok) {
+          log(
+            'Failed to fetch timeline bucket ' +
+              bucket.timeBucket +
+              ' for album ' +
+              albumId +
+              ' (status ' +
+              res.status +
+              ')'
+          )
+          return null
+        }
+        const bucketAssets = timelineBucketToAssets((await res.json()) as TimelineBucketAssets)
+        // Immich said this bucket had assets but returned none - seen when the
+        // Immich server's Postgres isn't running in UTC, which throws off the
+        // month-boundary truncation. Not fixable from here since we don't know
+        // the server's offset; just log it so it's diagnosable.
+        if (bucket.count > 0 && bucketAssets.length === 0) {
+          log(
+            'Timeline bucket ' +
+              bucket.timeBucket +
+              ' for album ' +
+              albumId +
+              ' reported count ' +
+              bucket.count +
+              ' but returned 0 assets - possible Immich server ' +
+              'timezone mismatch, see https://github.com/alangrainger/immich-public-proxy/issues/260'
+          )
+        }
+        return bucketAssets
+      })
+    )
     // If any bucket failed, treat the whole enumeration as failed.
     if (perBucket.some(b => b === null)) return null
     return (perBucket as Asset[][]).flat()
   } catch (e) {
-    log('Error enumerating album ' + albumId + ' via timeline: ' + (e instanceof Error ? e.message : String(e)))
+    log(
+      'Error enumerating album ' +
+        albumId +
+        ' via timeline: ' +
+        (e instanceof Error ? e.message : String(e))
+    )
     return null
   }
 }
@@ -483,24 +595,27 @@ async function fetchAlbumAssets (albumId: string, keyType: KeyType, key: string,
  * supplies the id and the already-stamped key/keyType/password. Returns
  * undefined on any failure.
  */
-export function fetchAssetDetail (asset: Asset): Promise<Asset | undefined> {
+export function fetchAssetDetail(asset: Asset): Promise<Asset | undefined> {
   const cacheKey = `${asset.keyType}:${asset.key}:${asset.id}`
   return cachedPromise(assetDetailCache, cacheKey, async () => {
     const headers = await authHeadersForAsset(asset)
     const res = await fetch(assetFetchUrl(asset, ''), { headers })
     if (!res.ok) return undefined
-    return await res.json() as Asset
+    return (await res.json()) as Asset
   })
 }
 
 /**
  * Get the content-type of a video, for the lightbox <video> element
  */
-export async function getVideoContentType (asset: Asset) {
+export async function getVideoContentType(asset: Asset) {
   const headers = await authHeadersForAsset(asset)
-  const data = await request(buildUrl('/assets/' + encodeURIComponent(asset.id) + '/video/playback', {
-    [asset.keyType]: asset.key
-  }), { headers })
+  const data = await request(
+    buildUrl('/assets/' + encodeURIComponent(asset.id) + '/video/playback', {
+      [asset.keyType]: asset.key
+    }),
+    { headers }
+  )
   return data.headers.get('Content-Type')
 }
 
@@ -510,7 +625,11 @@ export async function getVideoContentType (asset: Asset) {
  * has no password or login failed; in those cases Immich will respond 401
  * for protected resources, which the caller handles as "password required".
  */
-export async function authHeaders (keyType: KeyType, key: string, password?: string): Promise<Record<string, string>> {
+async function authHeaders(
+  keyType: KeyType,
+  key: string,
+  password?: string
+): Promise<Record<string, string>> {
   if (!password) return {}
   const token = await getSharedLinkToken(key, password, keyType)
   return token ? { Cookie: `immich_shared_link_token=${token}` } : {}
@@ -520,7 +639,7 @@ export async function authHeaders (keyType: KeyType, key: string, password?: str
  * `authHeaders` for an asset whose key/keyType/password are already stamped on
  * it (the common case for share-scoped fetches).
  */
-export function authHeadersForAsset (asset: Asset): Promise<Record<string, string>> {
+export function authHeadersForAsset(asset: Asset): Promise<Record<string, string>> {
   return authHeaders(asset.keyType || KeyType.key, asset.key, asset.password)
 }
 
@@ -529,7 +648,7 @@ export function authHeadersForAsset (asset: Asset): Promise<Record<string, strin
  * `/video/playback`), with the share key and optional `size` query param
  * encoded. `buildUrl` drops the `size` param when it is undefined.
  */
-export function assetFetchUrl (asset: Asset, subpath: string, sizeQueryParam?: string): string {
+export function assetFetchUrl(asset: Asset, subpath: string, sizeQueryParam?: string): string {
   return buildUrl(apiUrl() + '/assets/' + encodeURIComponent(asset.id) + subpath, {
     [asset.keyType || KeyType.key]: asset.key,
     size: sizeQueryParam
@@ -543,7 +662,11 @@ export function assetFetchUrl (asset: Asset, subpath: string, sizeQueryParam?: s
  * authenticated session. See `tokenCache` doc-comment for the security
  * argument.
  */
-function getSharedLinkToken (key: string, password: string, keyType: KeyType): Promise<string | null> {
+function getSharedLinkToken(
+  key: string,
+  password: string,
+  keyType: KeyType
+): Promise<string | null> {
   const cacheKey = `${keyType}:${key}:${password}`
   // Default eviction (falsy is invalid) drops a null/empty token, so a failed
   // login is never cached.
@@ -554,7 +677,11 @@ function getSharedLinkToken (key: string, password: string, keyType: KeyType): P
  * `POST /shared-links/login`. Replaces the deprecated `?password=...` query
  * param. Returns the cookie value on success, null on any failure.
  */
-async function sharedLinkLogin (key: string, password: string, keyType: KeyType): Promise<string | null> {
+async function sharedLinkLogin(
+  key: string,
+  password: string,
+  keyType: KeyType
+): Promise<string | null> {
   const url = buildUrl(apiUrl() + '/shared-links/login', { [keyType]: key })
   try {
     const res = await fetch(url, {
@@ -574,15 +701,19 @@ async function sharedLinkLogin (key: string, password: string, keyType: KeyType)
 /**
  * Build safely-encoded URL string.
  */
-export function buildUrl (baseUrl: string, params: { [key: string]: string | undefined } = {}) {
+function buildUrl(baseUrl: string, params: { [key: string]: string | undefined } = {}) {
   // Remove empty properties
   params = Object.fromEntries(Object.entries(params).filter(([_, value]) => !!value))
   let query = ''
   // Safely encode query parameters
   if (Object.entries(params).length) {
-    query = '?' + (new URLSearchParams(params as {
-      [key: string]: string
-    })).toString()
+    query =
+      '?' +
+      new URLSearchParams(
+        params as {
+          [key: string]: string
+        }
+      ).toString()
   }
   return baseUrl + query
 }
@@ -590,7 +721,7 @@ export function buildUrl (baseUrl: string, params: { [key: string]: string | und
 /**
  * Return the image data URL for a photo
  */
-export function photoUrl (key: string, id: string, size?: ImageSize) {
+export function photoUrl(key: string, id: string, size?: ImageSize) {
   const path = ['photo', key, id]
   if (size) path.push(size)
   return buildUrl('/share/' + path.join('/'))
@@ -599,14 +730,14 @@ export function photoUrl (key: string, id: string, size?: ImageSize) {
 /**
  * Return the video data URL for a video
  */
-export function videoUrl (key: string, id: string) {
+export function videoUrl(key: string, id: string) {
   return buildUrl(`/share/video/${key}/${id}`)
 }
 
 /**
  * Check if a provided ID matches the Immich ID format
  */
-export function isId (id: string) {
+export function isId(id: string) {
   return !!id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
 }
 
@@ -615,14 +746,14 @@ export function isId (id: string) {
  * It appears that the key is always 67 chars long, but since I don't know that this
  * will always be the case, I've left it open-ended.
  */
-export function isKey (key: string) {
+export function isKey(key: string) {
   return !!key.match(/^[\w-]+$/)
 }
 
 /**
  * Reachability ping for the `/share/healthcheck` route.
  */
-export async function accessible () {
+export async function accessible() {
   return !!(await request('/server/ping'))
 }
 
@@ -636,9 +767,14 @@ const formatVersion = (v: ImmichVersion) => `${v.major}.${v.minor}.${v.patch}`
  * (no auth required). Returns null if Immich is unreachable or the response
  * isn't the expected `{ major, minor, patch }` shape.
  */
-export async function getImmichVersion (): Promise<ImmichVersion | null> {
+export async function getImmichVersion(): Promise<ImmichVersion | null> {
   const res = await request('/server/version')
-  if (res && typeof res.major === 'number' && typeof res.minor === 'number' && typeof res.patch === 'number') {
+  if (
+    res &&
+    typeof res.major === 'number' &&
+    typeof res.minor === 'number' &&
+    typeof res.patch === 'number'
+  ) {
     return { major: res.major, minor: res.minor, patch: res.patch }
   }
   return null
@@ -648,7 +784,7 @@ export async function getImmichVersion (): Promise<ImmichVersion | null> {
  * True if `version` is at least MIN_IMMICH_VERSION. A prerelease of the
  * minimum version (e.g. 3.0.0-beta) counts as supported.
  */
-export function isImmichVersionSupported (version: ImmichVersion): boolean {
+export function isImmichVersionSupported(version: ImmichVersion): boolean {
   if (version.major !== MIN_IMMICH_VERSION.major) return version.major > MIN_IMMICH_VERSION.major
   if (version.minor !== MIN_IMMICH_VERSION.minor) return version.minor > MIN_IMMICH_VERSION.minor
   return version.patch >= MIN_IMMICH_VERSION.patch
@@ -661,23 +797,103 @@ export function isImmichVersionSupported (version: ImmichVersion): boolean {
  * unexpected response), log a warning and continue - a transient blip must not
  * crash-loop the container, and per-request handling still copes.
  */
-export async function enforceMinimumImmichVersion (): Promise<void> {
+export async function enforceMinimumImmichVersion(): Promise<void> {
   const version = await getImmichVersion()
   if (!version) {
-    log('Could not determine the Immich server version. Check that Immich is reachable and running ' + formatVersion(MIN_IMMICH_VERSION) + ' or newer.')
+    log(
+      'Could not determine the Immich server version. Check that Immich is reachable and running ' +
+        formatVersion(MIN_IMMICH_VERSION) +
+        ' or newer.'
+    )
     return
   }
   if (!isImmichVersionSupported(version)) {
-    console.error(dayjs().format() + ' FATAL: Immich server is version ' + formatVersion(version) + ', but IPP requires Immich ' + formatVersion(MIN_IMMICH_VERSION) + ' or newer.')
+    console.error(
+      new Date().toISOString() +
+        ' FATAL: Immich server is version ' +
+        formatVersion(version) +
+        ', but IPP requires Immich ' +
+        formatVersion(MIN_IMMICH_VERSION) +
+        ' or newer.'
+    )
     process.exit(1)
   }
+}
+
+type ImmichHealthState = 'healthy' | 'unreachable' | 'unsupported-version'
+// Seeded optimistic (not undefined) so the very first periodic tick only
+// logs if it finds something OTHER than healthy - enforceMinimumImmichVersion
+// already reported the startup state once; this shouldn't repeat it.
+let _lastImmichHealthState: ImmichHealthState = 'healthy'
+
+/**
+ * One tick of the periodic Immich health check started by
+ * startImmichHealthMonitor. Exported separately so tests can call it
+ * directly instead of waiting on a real timer.
+ *
+ * Unlike enforceMinimumImmichVersion (a startup gate that exits the process
+ * on a confirmed-too-old version - better to fail before serving any
+ * traffic with a broken backend), this never exits: an already-running IPP
+ * instance shouldn't kill itself over Immich being mid-upgrade or a
+ * transient network blip. It only logs on a STATE CHANGE (reachable ->
+ * unreachable, or version drifting below the minimum, and back), not every
+ * tick - matching the sparse, structured logging used elsewhere, and so a
+ * flaky Immich doesn't spam the log every few minutes forever.
+ */
+export async function checkImmichHealthOnce(): Promise<void> {
+  let state: ImmichHealthState
+  const version = await getImmichVersion()
+  if (!version) {
+    state = 'unreachable'
+  } else if (!isImmichVersionSupported(version)) {
+    state = 'unsupported-version'
+  } else {
+    state = 'healthy'
+  }
+
+  if (state === _lastImmichHealthState) return
+  const previous = _lastImmichHealthState
+  _lastImmichHealthState = state
+
+  if (state === 'healthy') {
+    log.info('Immich is reachable again (was ' + previous + ')')
+  } else if (state === 'unreachable') {
+    log.warn('Immich has become unreachable (was ' + previous + ')')
+  } else {
+    log.warn(
+      'Immich is reachable but now running ' +
+        formatVersion(version as ImmichVersion) +
+        ', below the minimum supported version ' +
+        formatVersion(MIN_IMMICH_VERSION) +
+        ' (was ' +
+        previous +
+        ')'
+    )
+  }
+}
+
+/**
+ * Starts the periodic health check on the given interval (default 5
+ * minutes) and returns the timer so callers can stop it (tests) or leave it
+ * running for the life of the process. `.unref()`'d so it never keeps the
+ * process alive on its own - the existing SIGTERM handling in index.ts
+ * closes the server directly, it doesn't wait on this timer.
+ */
+export function startImmichHealthMonitor(intervalMs = 5 * 60_000): NodeJS.Timeout {
+  const timer = setInterval(() => {
+    checkImmichHealthOnce().catch(e =>
+      log.error('Immich health check failed: ' + (e instanceof Error ? e.message : String(e)))
+    )
+  }, intervalMs)
+  timer.unref()
+  return timer
 }
 
 /**
  * Coerce an unknown `size` parameter from a URL into a valid ImageSize,
  * defaulting to preview when the input is missing or unrecognised.
  */
-export function validateImageSize (size: unknown) {
+export function validateImageSize(size: unknown) {
   if (!size || !Object.values(ImageSize).includes(size as ImageSize)) {
     return ImageSize.preview
   } else {
@@ -688,6 +904,6 @@ export function validateImageSize (size: unknown) {
 /**
  * Map the URL path prefix (`share` or `s`) to the corresponding `KeyType`.
  */
-export function getKeyTypeFromShare (shareType: string) {
+export function getKeyTypeFromShare(shareType: string) {
   return shareType === 's' ? KeyType.slug : KeyType.key
 }

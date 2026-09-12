@@ -5,12 +5,14 @@ import { createLimiter } from '../src/utils/limiter'
 
 /*
   Regression tests for the non-numeric concurrency bug: a non-numeric
-  `ipp.downloadFromImmichConcurrencyLimit` used to reach createLimiter as NaN,
-  where `active >= NaN` is always false - so the limiter never throttled and
-  every asset in a zip download hit Immich at once.
+  `ipp.downloadFromImmichConcurrencyLimit` used to reach createLimiter as NaN.
+  Two layers now guard against that becoming unlimited concurrency:
+  getNumericConfigOption falls back to a sane default at the config layer,
+  and createLimiter itself falls back to a limit of 1 if an invalid number
+  reaches it anyway.
 */
 
-function loadConfigFrom (config: Record<string, unknown>) {
+function loadConfigFrom(config: Record<string, unknown>) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -49,22 +51,31 @@ describe('getNumericConfigOption', () => {
 
 describe('createLimiter with guarded config', () => {
   /** Run `total` tasks through the limiter and report the concurrency peak */
-  async function peakConcurrency (limit: number, total: number): Promise<number> {
+  async function peakConcurrency(limit: number, total: number): Promise<number> {
     const run = createLimiter(limit)
     let active = 0
     let peak = 0
-    await Promise.all(Array.from({ length: total }, () => run(async () => {
-      active++
-      peak = Math.max(peak, active)
-      // Yield so other queued tasks get a chance to start while this one is "active"
-      await new Promise(resolve => setTimeout(resolve, 1))
-      active--
-    })))
+    await Promise.all(
+      Array.from({ length: total }, () =>
+        run(async () => {
+          active++
+          peak = Math.max(peak, active)
+          // Yield so other queued tasks get a chance to start while this one is "active"
+          await new Promise(resolve => setTimeout(resolve, 1))
+          active--
+        })
+      )
+    )
     return peak
   }
 
-  it('a NaN limit disables throttling (the failure mode being guarded against)', async () => {
-    expect(await peakConcurrency(NaN, 10)).toBe(10)
+  it('a NaN limit falls back to serial (1 at a time) instead of unlimited', async () => {
+    expect(await peakConcurrency(NaN, 10)).toBe(1)
+  })
+
+  it('a zero or negative limit also falls back to serial', async () => {
+    expect(await peakConcurrency(0, 5)).toBe(1)
+    expect(await peakConcurrency(-3, 5)).toBe(1)
   })
 
   it('the guarded value throttles as configured', async () => {

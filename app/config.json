@@ -2,7 +2,7 @@
   "ipp": {
     "responseHeaders": {
       "Cache-Control": "public, max-age=2592000",
-      "Access-Control-Allow-Origin":  "*"
+      "Access-Control-Allow-Origin": "*"
     },
     "maxDownloadQuality": "original",
     "maxZoomQuality": "preview",
@@ -10,6 +10,7 @@
     "allowDownload": 0,
     "allowSlugLinks": true,
     "showHomePage": true,
+    "shareResolutionConcurrency": 30,
     "showMetadata": {
       "description": {
         "caption": false,

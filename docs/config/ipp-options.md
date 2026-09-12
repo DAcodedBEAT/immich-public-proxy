@@ -108,6 +108,20 @@ Set to `false` to remove the IPP shield page at `/` and at `/share`.
 }
 ```
 
+## `shareResolutionConcurrency`
+
+**Type:** `int` · **Default:** `30`
+
+Maximum simultaneous *uncached* share lookups against Immich, across all visitors. A share's first view each
+2-minute cache window costs one round trip to Immich (more for an album, which also enumerates its assets); a
+request for a key that doesn't exist costs the same but is never cached at all, since a negative result isn't
+kept (a transient Immich hiccup must never get stuck looking like a permanently invalid share). Without a
+limit, a burst of requests for made-up keys - deliberate probing, or just the internet background noise every
+public endpoint gets - would have no bound on how many concurrent round trips it could drive against your
+private Immich instance. This does not throttle warm (already-cached) requests, only first-time lookups, so it
+should not need raising for ordinary traffic; raise it if you expect an unusually large number of visitors
+opening *different* shares within the same couple of seconds.
+
 ## `gallery`
 
 **Type:** `object`

@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 
-import 'dotenv/config'
+// Load .env into process.env, same as `dotenv/config` did - but env vars are
+// normally supplied by docker-compose, not a file, so a missing .env (the
+// common case) must stay a silent no-op rather than a startup crash.
+try {
+  process.loadEnvFile()
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+}
+
 import express from 'express'
 import cookieSession from 'cookie-session'
 import {
@@ -11,13 +19,13 @@ import {
   getShareByKey,
   handleShareRequest,
   isId,
-  isKey
+  isKey,
+  startImmichHealthMonitor
 } from './immich'
 import { buildAssetMetadata } from './gallery/metadata'
 import crypto from 'crypto'
 import { assetBuffer } from './stream/asset'
 import { downloadAssets } from './stream/download'
-import dayjs from 'dayjs'
 import { NextFunction, Request, Response } from 'express-serve-static-core'
 import { Asset, AssetType, ImageSize, KeyType, SharedLink } from './types'
 import { getConfigOption } from './config/access'
@@ -28,6 +36,8 @@ import { toString } from './utils/text'
 import { decrypt, encrypt } from './encrypt'
 import { respondToInvalidRequest } from './invalidRequestHandler'
 import { ASSET_VERSION } from './version'
+import { isBanned } from './security/banlist'
+import { formatStartupSummary } from './utils/startupSummary'
 import { h } from 'preact'
 import { renderPage } from './view/render'
 import { Home } from './view/home'
@@ -35,7 +45,7 @@ import { Home } from './view/home'
 // Extend the Request type with a `password` property
 declare module 'express-serve-static-core' {
   interface Request {
-    password?: string;
+    password?: string
   }
 }
 
@@ -44,23 +54,61 @@ declare module 'express-serve-static-core' {
 loadConfig()
 
 const app = express()
-app.use(cookieSession({
-  name: 'session',
-  httpOnly: true,
-  sameSite: 'lax',
-  secret: crypto.randomBytes(32).toString('base64url')
-}))
+
+// Trust the client IP forwarded by exactly N proxy hops in front of IPP.
+// Without this, req.ip is always the raw socket address - safe by default,
+// but under a proxy that's the proxy's own address, not the visitor's,
+// which makes IP-based logging/banning useless. Only set IPP_TRUST_PROXY if
+// you know exactly how many hops sit in front of IPP; trusting a hop that
+// doesn't exist lets a visitor spoof X-Forwarded-For and frame another IP
+// for their own abuse.
+const trustProxyHops = Number(process.env.IPP_TRUST_PROXY) || 0
+if (trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops)
+}
+
+// Enforcement side of an externally-maintained IP ban list (see
+// src/security/banlist.ts). No-op unless IPP_BANLIST_PATH is set. Runs
+// before everything else so a banned IP can't touch sessions, static
+// assets, or share resolution.
+app.use((req, res, next) => {
+  if (isBanned(req.ip || '')) {
+    res.status(403).end()
+    return
+  }
+  next()
+})
+
+// A random per-process secret is fine for a single instance, but it means a
+// session cookie signed by one process can't be verified by another. Behind
+// a load balancer without sticky sessions, that breaks password-protected
+// shares unpredictably as requests bounce between replicas - the visitor's
+// "stay unlocked" session only works on whichever instance set it. Set
+// IPP_SESSION_SECRET to the same value on every replica to fix this; leave
+// it unset for a single instance and nothing changes.
+const sessionSecret = process.env.IPP_SESSION_SECRET || crypto.randomBytes(32).toString('base64url')
+app.use(
+  cookieSession({
+    name: 'session',
+    httpOnly: true,
+    sameSite: 'lax',
+    secret: sessionSecret
+  })
+)
 // For parsing the password unlock form and POSTed JSON payloads
 app.use(express.json())
 // For parsing the selective-download form POST (form-encoded body)
 app.use(express.urlencoded({ extended: false, limit: '1mb' }))
 // Cache-busted, immutable static assets under a per-release version segment.
 const inProduction = process.env.NODE_ENV === 'production'
-app.use('/share/static/' + ASSET_VERSION, express.static('public', {
-  immutable: inProduction,
-  maxAge: inProduction ? '365d' : 0,
-  setHeaders: addResponseHeaders
-}))
+app.use(
+  '/share/static/' + ASSET_VERSION,
+  express.static('public', {
+    immutable: inProduction,
+    maxAge: inProduction ? '365d' : 0,
+    setHeaders: addResponseHeaders
+  })
+)
 // Serve static assets from the 'public' folder as /share/static
 app.use('/share/static', express.static('public', { setHeaders: addResponseHeaders }))
 // Serve the same assets on /, to allow for /robots.txt and /favicon.ico
@@ -76,14 +124,16 @@ const decodeCookie = (req: Request, _res: Response, next: NextFunction) => {
   const session = req.session?.[shareKey]
   if (shareKey && session?.iv && session?.cr) {
     try {
-      const payload = JSON.parse(decrypt({
-        iv: toString(session.iv),
-        cr: toString(session.cr)
-      }))
-      if (payload?.expires && dayjs(payload.expires) > dayjs()) {
+      const payload = JSON.parse(
+        decrypt({
+          iv: toString(session.iv),
+          cr: toString(session.cr)
+        })
+      )
+      if (payload?.expires && new Date(payload.expires) > new Date()) {
         req.password = payload.password
       }
-    } catch (e) { }
+    } catch (e) {}
   }
   next()
 }
@@ -97,14 +147,14 @@ const decodeCookie = (req: Request, _res: Response, next: NextFunction) => {
  * `valid`/`link`/`passwordRequired` checks live in one place.
  */
 type ShareResolution =
-  | { ok: true, link: SharedLink }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink }
+  | { ok: false; status: number; reason: string; passwordRequired?: boolean }
 
 type SharedAssetResolution =
-  | { ok: true, link: SharedLink, asset: Asset }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink; asset: Asset }
+  | { ok: false; status: number; reason: string; passwordRequired?: boolean }
 
-async function resolveShare (req: Request, keyType: KeyType): Promise<ShareResolution> {
+async function resolveShare(req: Request, keyType: KeyType): Promise<ShareResolution> {
   if (!isKey(req.params.key)) {
     return { ok: false, status: 404, reason: 'Invalid key for ' + req.path }
   }
@@ -121,7 +171,7 @@ async function resolveShare (req: Request, keyType: KeyType): Promise<ShareResol
   return { ok: true, link: share.link }
 }
 
-async function resolveSharedAsset (req: Request, keyType: KeyType): Promise<SharedAssetResolution> {
+async function resolveSharedAsset(req: Request, keyType: KeyType): Promise<SharedAssetResolution> {
   if (!isId(req.params.id)) {
     return { ok: false, status: 404, reason: 'Invalid ID for ' + req.path }
   }
@@ -140,33 +190,43 @@ async function resolveSharedAsset (req: Request, keyType: KeyType): Promise<Shar
  * [ROUTE] Healthcheck
  * The path matches for /share/healthcheck, and also the legacy /healthcheck
  */
-app.get(/^(|\/share)\/healthcheck$/, asyncHandler(async (_req, res) => {
-  if (await accessible()) {
-    res.send('ok')
-  } else {
-    res.status(503).send()
-  }
-}))
+app.get(
+  /^(|\/share)\/healthcheck$/,
+  asyncHandler(async (_req, res) => {
+    if (await accessible()) {
+      res.send('ok')
+    } else {
+      res.status(503).send()
+    }
+  })
+)
 
 /*
  * [ROUTE] This is the main URL that someone would visit if they are opening a shared link
  */
-app.get('/:shareType(share|s)/:key/:mode(download)?', decodeCookie, asyncHandler(async (req, res) => {
-  const keyType = getKeyTypeFromShare(req.params.shareType)
+app.get(
+  '/:shareType(share|s)/:key/:mode(download)?',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const keyType = getKeyTypeFromShare(req.params.shareType)
 
-  if (keyType === KeyType.slug && !getConfigOption('ipp.allowSlugLinks', true)) {
-    // Slug type links are not allowed
-    respondToInvalidRequest(res, 404, 'Slug links are disabled in config.json')
-  } else {
-    await handleShareRequest({
-      req,
-      key: req.params.key,
-      keyType,
-      mode: req.params.mode,
-      password: req.password
-    }, res)
-  }
-}))
+    if (keyType === KeyType.slug && !getConfigOption('ipp.allowSlugLinks', true)) {
+      // Slug type links are not allowed
+      respondToInvalidRequest(res, 404, 'Slug links are disabled in config.json')
+    } else {
+      await handleShareRequest(
+        {
+          req,
+          key: req.params.key,
+          keyType,
+          mode: req.params.mode,
+          password: req.password
+        },
+        res
+      )
+    }
+  })
+)
 
 /*
  * [ROUTE] Receive an unlock request from the password page
@@ -177,15 +237,20 @@ app.get('/:shareType(share|s)/:key/:mode(download)?', decodeCookie, asyncHandler
  * managing user session data. The data is provided to the server by the
  * user's browser in its encrypted state.
  */
-app.post('/share/unlock', asyncHandler(async (req, res) => {
-  if (req.session && req.body.key) {
-    req.session[req.body.key] = encrypt(JSON.stringify({
-      password: req.body.password,
-      expires: dayjs().add(1, 'hour').format()
-    }))
-  }
-  res.send()
-}))
+app.post(
+  '/share/unlock',
+  asyncHandler(async (req, res) => {
+    if (req.session && req.body.key) {
+      req.session[req.body.key] = encrypt(
+        JSON.stringify({
+          password: req.body.password,
+          expires: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        })
+      )
+    }
+    res.send()
+  })
+)
 
 /*
  * [ROUTE] Selective download - POST a list of asset IDs, get a zip of just those.
@@ -193,39 +258,43 @@ app.post('/share/unlock', asyncHandler(async (req, res) => {
  * Validates each ID against share.assets so the request can't pull anything
  * outside the share.
  */
-app.post('/:shareType(share|s)/:key/download', decodeCookie, asyncHandler(async (req, res) => {
-  const keyType = getKeyTypeFromShare(req.params.shareType)
-  let requestedIds: unknown
-  try {
-    requestedIds = JSON.parse(String(req.body?.assets ?? '[]'))
-  } catch (e) {
-    respondToInvalidRequest(res, 400, 'Malformed assets list')
-    return
-  }
-  if (!Array.isArray(requestedIds) || requestedIds.length === 0) {
-    respondToInvalidRequest(res, 400, 'No assets selected')
-    return
-  }
+app.post(
+  '/:shareType(share|s)/:key/download',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const keyType = getKeyTypeFromShare(req.params.shareType)
+    let requestedIds: unknown
+    try {
+      requestedIds = JSON.parse(String(req.body?.assets ?? '[]'))
+    } catch (e) {
+      respondToInvalidRequest(res, 400, 'Malformed assets list')
+      return
+    }
+    if (!Array.isArray(requestedIds) || requestedIds.length === 0) {
+      respondToInvalidRequest(res, 400, 'No assets selected')
+      return
+    }
 
-  const resolved = await resolveShare(req, keyType)
-  if (!resolved.ok) {
-    respondToInvalidRequest(res, resolved.status, resolved.reason)
-    return
-  }
-  if (!canDownload(resolved.link)) {
-    respondToInvalidRequest(res, 403, 'Downloads disabled for this share')
-    return
-  }
+    const resolved = await resolveShare(req, keyType)
+    if (!resolved.ok) {
+      respondToInvalidRequest(res, resolved.status, resolved.reason)
+      return
+    }
+    if (!canDownload(resolved.link)) {
+      respondToInvalidRequest(res, 403, 'Downloads disabled for this share')
+      return
+    }
 
-  const requested = new Set(requestedIds.map(String))
-  const validAssets = resolved.link.assets.filter(a => requested.has(a.id))
-  if (validAssets.length === 0) {
-    respondToInvalidRequest(res, 400, 'No valid assets in selection')
-    return
-  }
+    const requested = new Set(requestedIds.map(String))
+    const validAssets = resolved.link.assets.filter(a => requested.has(a.id))
+    if (validAssets.length === 0) {
+      respondToInvalidRequest(res, 400, 'No valid assets in selection')
+      return
+    }
 
-  await downloadAssets(res, resolved.link, validAssets)
-}))
+    await downloadAssets(res, resolved.link, validAssets)
+  })
+)
 
 /*
  * [ROUTE] Catch accidental POST requests to share URLs (e.g. from browser history
@@ -239,43 +308,58 @@ app.post('/:shareType(share|s)/:key/:mode(download)?', (req, res) => {
 /*
  * [ROUTE] This is the direct link to a photo or video asset
  */
-app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(async (req, res) => {
-  // Add the headers configured in config.json (most likely `cache-control`)
-  addResponseHeaders(res)
+app.get(
+  '/share/:type(photo|video)/:key/:id/:size?',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    // Add the headers configured in config.json (most likely `cache-control`)
+    addResponseHeaders(res)
 
-  // Validate the size parameter
-  if (req.params.size && !Object.values(ImageSize).includes(req.params.size as ImageSize)) {
-    respondToInvalidRequest(res, 404, 'Invalid size parameter ' + req.path)
-    return
-  }
-
-  // Resolve the share + asset (this is a `/share/...` route, always key auth).
-  // The resolved asset gives assetBuffer access to originalMimeType and
-  // originalFileName (needed for Content-Disposition and for requiresOriginal
-  // to recognise videos/animated images and bypass the preview downgrade).
-  const resolved = await resolveSharedAsset(req, KeyType.key)
-  if (!resolved.ok) {
-    // Password-protected: redirect to the share page so the visitor gets the
-    // unlock prompt, rather than returning an error.
-    if (resolved.passwordRequired) {
-      res.redirect('/share/' + req.params.key)
+    // Validate the size parameter
+    if (req.params.size && !Object.values(ImageSize).includes(req.params.size as ImageSize)) {
+      respondToInvalidRequest(res, 404, 'Invalid size parameter ' + req.path)
       return
     }
-    respondToInvalidRequest(res, resolved.status, resolved.reason)
-    return
-  }
-  const asset: Asset = {
-    ...resolved.asset,
-    type: req.params.type === 'video' ? AssetType.video : resolved.asset.type
-  }
 
-  const request = {
-    req,
-    key: req.params.key,
-    range: req.headers.range || ''
-  }
-  await assetBuffer(request, res, asset, req.params.size, resolved.link, req.params.type === 'video')
-}))
+    // Resolve the share + asset (this is a `/share/...` route, always key auth).
+    // The resolved asset gives assetBuffer access to originalMimeType and
+    // originalFileName (needed for Content-Disposition and for requiresOriginal
+    // to recognise videos/animated images and bypass the preview downgrade).
+    const resolved = await resolveSharedAsset(req, KeyType.key)
+    if (!resolved.ok) {
+      // Password-protected: redirect to the share page so the visitor gets the
+      // unlock prompt, rather than returning an error. isKey() (checked
+      // earlier, inside resolveShare) already restricts req.params.key to
+      // [\w-]+, which can't produce a protocol-relative or header-injection
+      // redirect - encodeURIComponent here is a free, defence-in-depth second
+      // guard in case that validation is ever loosened.
+      if (resolved.passwordRequired) {
+        res.redirect('/share/' + encodeURIComponent(req.params.key))
+        return
+      }
+      respondToInvalidRequest(res, resolved.status, resolved.reason)
+      return
+    }
+    const asset: Asset = {
+      ...resolved.asset,
+      type: req.params.type === 'video' ? AssetType.video : resolved.asset.type
+    }
+
+    const request = {
+      req,
+      key: req.params.key,
+      range: req.headers.range || ''
+    }
+    await assetBuffer(
+      request,
+      res,
+      asset,
+      req.params.size,
+      resolved.link,
+      req.params.type === 'video'
+    )
+  })
+)
 
 /*
  * [ROUTE] On-demand per-asset metadata for lazy album items.
@@ -286,23 +370,27 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(
  * validated against the share's asset set (defence in depth - Immich also
  * enforces this via the share key) before we fetch `GET /assets/:id`.
  */
-app.get('/:shareType(share|s)/meta/:key/:id', decodeCookie, asyncHandler(async (req, res) => {
-  addResponseHeaders(res)
+app.get(
+  '/:shareType(share|s)/meta/:key/:id',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    addResponseHeaders(res)
 
-  const resolved = await resolveSharedAsset(req, getKeyTypeFromShare(req.params.shareType))
-  if (!resolved.ok) {
-    respondToInvalidRequest(res, resolved.status, resolved.reason)
-    return
-  }
+    const resolved = await resolveSharedAsset(req, getKeyTypeFromShare(req.params.shareType))
+    if (!resolved.ok) {
+      respondToInvalidRequest(res, resolved.status, resolved.reason)
+      return
+    }
 
-  const detail = await fetchAssetDetail(resolved.asset)
-  if (!detail) {
-    respondToInvalidRequest(res, 404, 'Asset detail unavailable for ' + req.params.id)
-    return
-  }
+    const detail = await fetchAssetDetail(resolved.asset)
+    if (!detail) {
+      respondToInvalidRequest(res, 404, 'Asset detail unavailable for ' + req.params.id)
+      return
+    }
 
-  res.json(buildAssetMetadata(detail, resolved.link))
-}))
+    res.json(buildAssetMetadata(detail, resolved.link))
+  })
+)
 
 /*
  * [ROUTE] Home page
@@ -336,7 +424,7 @@ app.use(errorHandler)
 
 // Send the correct process error code for any uncaught exceptions
 // so that Docker can gracefully restart the container
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   console.error('There was an uncaught error', err)
   server.close()
   process.exit(1)
@@ -356,9 +444,22 @@ process.on('SIGTERM', () => {
 // Start the ExpressJS server
 const port = Number(process.env.IPP_PORT) || 3000
 const server = app.listen(port, () => {
-  console.log(dayjs().format() + ' Server started on port ' + port)
+  console.log(new Date().toISOString() + ' Server started on port ' + port)
+  console.log(
+    new Date().toISOString() +
+      ' ' +
+      formatStartupSummary({
+        trustProxyHops,
+        banlistPath: process.env.IPP_BANLIST_PATH,
+        publicBaseUrl: process.env.PUBLIC_BASE_URL
+      })
+  )
   // Bail out early if the Immich server is older than IPP supports, rather
   // than silently serving broken album shares. Unknown/unreachable is
   // tolerated (logs a warning and continues) - see enforceMinimumImmichVersion.
   enforceMinimumImmichVersion().catch(e => console.error('Immich version check failed:', e))
+  // Ongoing awareness for the rest of the process's life - the check above
+  // only ever runs once, at startup. Advisory only (see its own doc-comment
+  // for why this never exits the process the way the startup check can).
+  startImmichHealthMonitor()
 })
