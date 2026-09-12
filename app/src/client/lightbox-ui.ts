@@ -183,13 +183,13 @@ let motionEnabled = false
  * no box of its own though (auto width / height, absolute children), so the
  * clip can't be sized from it.
  */
-function currentZoomWrap (pswp: PswpInstance): HTMLElement | null {
+function currentZoomWrap(pswp: PswpInstance): HTMLElement | null {
   const container = pswp.currSlide?.container
   return container instanceof HTMLElement ? container : null
 }
 
 /** The loaded still in a zoom wrap (not the thumbnail placeholder), if any. */
-function loadedStill (wrap: HTMLElement): HTMLElement | null {
+function loadedStill(wrap: HTMLElement): HTMLElement | null {
   const still = wrap.querySelector('.pswp__img:not(.pswp__img--placeholder)')
   return still instanceof HTMLElement ? still : null
 }
@@ -200,7 +200,7 @@ function loadedStill (wrap: HTMLElement): HTMLElement | null {
  * The button hides itself on slides without a clip. Nothing is fetched from
  * Immich until the toggle is turned on.
  */
-export function registerMotionButton (lightbox: LightboxInstance) {
+export function registerMotionButton(lightbox: LightboxInstance) {
   lightbox.on('uiRegister', () => {
     lightbox.pswp.ui.registerElement({
       name: 'motion-button',
@@ -270,9 +270,13 @@ export function registerMotionButton (lightbox: LightboxInstance) {
           clip.addEventListener('error', stop, { once: true })
           // Hide the still only once the clip is painting, so a slow clip never
           // leaves the slide blank.
-          clip.addEventListener('playing', () => {
-            if (video === clip) wrap.classList.add(MOTION_PLAYING_CLASS)
-          }, { once: true })
+          clip.addEventListener(
+            'playing',
+            () => {
+              if (video === clip) wrap.classList.add(MOTION_PLAYING_CLASS)
+            },
+            { once: true }
+          )
           wrap.appendChild(clip)
           video = clip
           clip.play().catch(() => stop())

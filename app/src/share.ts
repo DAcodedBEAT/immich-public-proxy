@@ -72,7 +72,7 @@ function expiryDateLocale(): string | undefined {
  * clip is a hidden asset that Immich authorises under the same share key;
  * requiring a shared still to point at it keeps the ids IPP serves bounded.
  */
-export function findMotionPhotoStill (share: SharedLink, clipId: string): Asset | undefined {
+export function findMotionPhotoStill(share: SharedLink, clipId: string): Asset | undefined {
   if (!clipId) return undefined
   return share.assets.find(asset => asset.livePhotoVideoId === clipId)
 }

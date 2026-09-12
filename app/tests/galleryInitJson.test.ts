@@ -47,7 +47,7 @@ function galleryProps(item: Partial<GalleryItem>): GalleryProps {
 const payload = '</script><script>alert(1)</script>'
 
 /** Render a gallery and parse back the `#ipp-init` JSON block the client reads. */
-function initParams (props: GalleryProps) {
+function initParams(props: GalleryProps) {
   const html = renderPage(h(Gallery, props))
   const match = html.match(/<script type="application\/json" id="ipp-init">(.*?)<\/script>/s)
   if (!match) throw new Error('No init JSON block in the rendered gallery')

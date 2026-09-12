@@ -60,7 +60,9 @@ export default defineConfig({
         items: [
           { text: 'Single domain with Immich', link: '/running-on-single-domain' },
           { text: 'Redirect root domain to a share', link: '/redirect-root-to-share' },
-          { text: 'Securing Immich with mTLS', link: '/securing-immich-with-mtls' }
+          { text: 'Securing Immich with mTLS', link: '/securing-immich-with-mtls' },
+          { text: 'Securing Immich with Tailscale', link: '/securing-immich-with-tailscale' },
+          { text: 'Install with Kubernetes', link: '/kubernetes' }
         ]
       },
       { text: 'Troubleshooting', link: '/troubleshooting' }

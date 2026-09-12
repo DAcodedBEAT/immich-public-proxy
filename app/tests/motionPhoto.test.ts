@@ -13,14 +13,15 @@ import { gallery } from '../src/gallery/builder'
 const cfg: Record<string, unknown> = {}
 vi.mock('../src/config/access', () => ({
   getConfigOption: (path: string, fallback?: unknown) => (path in cfg ? cfg[path] : fallback),
-  getNumericConfigOption: (path: string, fallback: number) => (path in cfg ? Number(cfg[path]) : fallback)
+  getNumericConfigOption: (path: string, fallback: number) =>
+    path in cfg ? Number(cfg[path]) : fallback
 }))
 
 const STILL_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 const CLIP_ID = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
 const UNRELATED_ID = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
 
-function asset (overrides: Partial<Asset> = {}): Asset {
+function asset(overrides: Partial<Asset> = {}): Asset {
   return {
     id: STILL_ID,
     key: 'share-key',
@@ -31,7 +32,7 @@ function asset (overrides: Partial<Asset> = {}): Asset {
   }
 }
 
-function share (assets: Asset[]): SharedLink {
+function share(assets: Asset[]): SharedLink {
   return {
     key: 'share-key',
     keyType: KeyType.key,
@@ -42,12 +43,14 @@ function share (assets: Asset[]): SharedLink {
 }
 
 /** Render a gallery for these assets and return the items the client receives. */
-async function renderItems (assets: Asset[]) {
+async function renderItems(assets: Asset[]) {
   let html = ''
   const res = {
     req: { protocol: 'https', headers: { host: 'example.com' } },
     header: () => {},
-    send: (body: string) => { html = body }
+    send: (body: string) => {
+      html = body
+    }
   } as unknown as Response
   await gallery(res, share(assets))
   const match = html.match(/<script type="application\/json" id="ipp-init">(.*?)<\/script>/s)

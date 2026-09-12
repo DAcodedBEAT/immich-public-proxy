@@ -1,6 +1,15 @@
 {
   "name": "immich-public-proxy",
   "version": "3.4.0",
+  "description": "Share your Immich photos and albums in a safe way without exposing your Immich instance to the public.",
+  "license": "AGPL-3.0",
+  "author": "Alan Grainger",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alangrainger/immich-public-proxy.git"
+  },
+  "bin": "dist/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"tsx watch src/index.ts\" \"tsc -w -p tsconfig.client.json\"",
     "build": "tsc && tsc -p tsconfig.client.json",
@@ -14,15 +23,6 @@
     "test:container": "podman build --build-arg PACKAGE_VERSION=$(npm pkg get version | xargs) --format docker -t immich-proxy-test .. && podman run --init -it -p=3000:3000 --env-file .env --restart=always immich-proxy-test",
     "start": "node dist/index.js"
   },
-  "author": "Alan Grainger",
-  "license": "AGPL-3.0",
-  "description": "Share your Immich photos and albums in a safe way without exposing your Immich instance to the public.",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/alangrainger/immich-public-proxy.git"
-  },
-  "main": "dist/index.js",
-  "bin": "dist/index.js",
   "dependencies": {
     "archiver": "^7.0.1",
     "cookie-session": "^2.1.0",

@@ -3,11 +3,31 @@ services:
     image: alangrainger/immich-public-proxy:latest
     container_name: immich-public-proxy
     restart: always
+    # Published on every host interface, including any public-facing one.
+    # Docker writes its own iptables/nftables rules for this, ahead of where
+    # ufw/firewalld filter - a "deny 3000" rule there will NOT actually block
+    # it. Keep this as-is if whatever reaches IPP does so over the network -
+    # a reverse-proxy container on a different Docker network, or one on a
+    # different host. If instead only a reverse proxy running directly on
+    # THIS host will ever reach IPP, change it to "127.0.0.1:3000:3000" -
+    # loopback is reachable from other processes on the same host either way,
+    # so nothing is lost. Doing so also closes a real hole if you set
+    # IPP_TRUST_PROXY: anything that can still reach this port directly can
+    # forge X-Forwarded-For and defeat IP-based abuse blocking entirely.
     ports:
       - "3000:3000"
     environment:
       PUBLIC_BASE_URL: https://your-proxy-url.com
       IMMICH_URL: http://your-internal-immich-server:2283
+    # Many concurrent connections (large galleries, zip downloads, lots of
+    # simultaneous visitors) can approach Docker's often-low default
+    # open-file-descriptor limit well before any other resource is a
+    # concern. Raising it is safe and effectively free for a proxy that
+    # otherwise mostly idles on open sockets.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: curl -s http://localhost:3000/share/healthcheck -o /dev/null || exit 1
       start_period: 10s

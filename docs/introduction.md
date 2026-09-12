@@ -40,7 +40,8 @@ and any existing or future vulnerability in it has the potential to compromise y
 
 IPP removes that exposure: Immich stays private, and the only thing on the internet is a small read-only proxy that
 can't do anything except serve what you have already shared. The ideal setup is Immich secured behind mTLS or a VPN,
-with public access only to IPP. See [Securing Immich with mTLS](/securing-immich-with-mtls) for an example.
+with public access only to IPP. See [Securing Immich with mTLS](/securing-immich-with-mtls) for an example, or
+[Securing Immich with Tailscale Funnel](/securing-immich-with-tailscale) if you're already using Tailscale.
 
 ## Design principles
 
