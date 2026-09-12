@@ -71,10 +71,12 @@ over your private network.
    `X-Forwarded-For` to the real public visitor's IP for every request - Tailscale replaces any
    value a visitor tries to set themselves, so it can't be spoofed. Without this setting, IPP has
    no way to know a proxy is even there, and falls back to the forwarder's own local address for
-   every visitor. That address is what ends up in `req.ip` - the value abuse logging and an
-   `IPP_BANLIST_PATH` ban list both key off - so without this setting, banning visitors by IP
-   silently does nothing at all (every visitor looks the same, and it isn't even a real attacker's
-   address).
+   every visitor. That address is what ends up in `req.ip` - the value abuse logging and
+   [`IPP_BANLIST_PATH`](./uploads.md#blocking-abusive-visitors-fail2ban-and-crowdsec) both key off - so without this
+   setting, banning visitors by IP silently does nothing at all (every visitor looks the same,
+   and it isn't even a real attacker's address). See [Blocking abusive visitors](./uploads.md#blocking-abusive-visitors-fail2ban-and-crowdsec)
+   if you plan on wiring up fail2ban/CrowdSec or the banlist file behind Funnel - both work
+   normally once this is set.
 
 ## Notes
 
@@ -82,7 +84,5 @@ over your private network.
   your tailnet, matching the same "proxy is public, Immich is private" model as the mTLS setup.
 - The free Tailscale tier has bandwidth limits on Funnel traffic, which is worth keeping in mind if you're
   serving large videos or "download all" zips publicly.
-- A direct iptables-based ban doesn't work behind Funnel - there's no direct connection from the visitor
-  to filter, since traffic arrives over the tailnet from Tailscale's own infrastructure. Point
-  `IPP_BANLIST_PATH` at a plain-text file (one IP per line) and IPP will reject requests from any address
-  listed in it, which an external tool like fail2ban or CrowdSec can maintain for you.
+- If you also enable [guest uploads](./uploads.md), the same funneled URL is what visitors will upload
+  through - the `IMMICH_API_KEY` and Immich instance itself still never leave the tailnet.

@@ -137,6 +137,17 @@ describe('express routes', () => {
     expect(await status('/share/unlock', { method: 'POST' })).toBe(200)
   })
 
+  it.each([`/share/${KEY}/upload`, `/s/${KEY}/upload`, `/share/${KEY}/upload-check`])(
+    'forbids POST %s when uploads are not enabled',
+    async path => {
+      expect(await status(path, { method: 'POST' })).toBe(403)
+    }
+  )
+
+  it('falls through to 404 for an upload POST with an unknown share type', async () => {
+    expect(await status(`/foo/${KEY}/upload`, { method: 'POST' })).toBe(404)
+  })
+
   it('keeps serving after all of the above', async () => {
     expect(await status('/share/healthcheck')).toBe(200)
   })

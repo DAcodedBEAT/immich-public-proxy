@@ -6,10 +6,12 @@ import {
   getShareByKey,
   handleShareRequest,
   isId,
-  isKey
+  isKey,
+  isPasswordVerified
 } from './immich'
 import { fetchAssetDetail } from './immich/assets'
 import { buildAssetMetadata } from './gallery/metadata'
+import { handleUpload, handleUploadCheck } from './upload/handler'
 import crypto from 'crypto'
 import { assetBuffer } from './stream/asset'
 import { downloadAssets } from './stream/download'
@@ -17,12 +19,13 @@ import { NextFunction, Request, Response } from 'express-serve-static-core'
 import { Asset, AssetType, ImageSize, KeyType, SharedLink } from './types'
 import { getConfigOption } from './config/access'
 import { addResponseHeaders, errorHandler } from './http'
-import { canDownload, findMotionPhotoStill } from './share'
+import { canDownload, canUpload, findMotionPhotoStill } from './share'
 import { toString } from './utils/text'
 import { decrypt, encrypt } from './encrypt'
 import { respondToInvalidRequest } from './invalidRequestHandler'
 import { ASSET_VERSION } from './version'
 import { isBanned } from './security/banlist'
+import { logAbuse } from './utils/abuseLog'
 import { h } from 'preact'
 import { renderPage } from './view/render'
 import { Home } from './view/home'
@@ -297,6 +300,54 @@ app.post('/:shareType/:key/download', decodeCookie, async (req, res) => {
   }
 
   await downloadAssets(res, resolved.link, validAssets)
+})
+
+/**
+ * Shared validation for the upload routes: resolves the share link (via the
+ * same resolveShare guard the read routes use) and checks upload permission.
+ * Responds with a JSON error and returns null on any failure.
+ */
+async function validateUploadShare(
+  req: Request<{ shareType: string; key: string }>,
+  res: Response
+) {
+  const keyType = getKeyTypeFromShare(req.params.shareType)
+  const resolved = await resolveShare(req, keyType)
+  if (!resolved.ok) {
+    res
+      .status(resolved.status)
+      .json({ error: resolved.passwordRequired ? 'Password required' : 'Invalid share link' })
+    return null
+  }
+  const passwordVerified = await isPasswordVerified(req.params.key, keyType, req.password)
+  if (!canUpload(resolved.link, passwordVerified)) {
+    logAbuse('upload-forbidden', req, `share=${req.params.key.slice(0, 8)}`)
+    res.status(403).json({ error: 'Uploads not allowed for this share' })
+    return null
+  }
+  return { link: resolved.link, keyType }
+}
+
+/*
+ * [ROUTE] Upload a single file to the album associated with a share link.
+ * Share validation happens here (mirroring the download route); everything
+ * after that - multipart parsing, streaming to Immich, album-add, response -
+ * lives in upload/handler.ts.
+ */
+app.post('/:shareType/:key/upload', decodeCookie, async (req, res) => {
+  const valid = await validateUploadShare(req, res)
+  if (valid) await handleUpload(req, res, valid.link, valid.keyType)
+})
+
+/*
+ * [ROUTE] Pre-upload duplicate check. The client sends SHA-1 checksums; for
+ * files Immich already has, the server adds the existing asset to the album
+ * and the client skips the byte transfer. See handleUploadCheck for the
+ * security reasoning (client supplies checksums, never asset IDs).
+ */
+app.post('/:shareType/:key/upload-check', decodeCookie, async (req, res) => {
+  const valid = await validateUploadShare(req, res)
+  if (valid) await handleUploadCheck(req, res, valid.link, valid.keyType)
 })
 
 /*

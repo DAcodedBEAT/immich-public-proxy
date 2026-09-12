@@ -18,8 +18,14 @@ import { displayDimensions, metadataGroupActive, pickExif } from './exif'
  * @param res - ExpressJS Response
  * @param share - Immich `shared-link` containing the assets to show in the gallery
  * @param [openItem] - Immediately open the lightbox to the Nth item when the gallery loads
+ * @param [uploadAllowed] - Whether to show the upload UI (resolved by the caller, see `canUpload`)
  */
-export async function gallery(res: Response, share: SharedLink, openItem?: number) {
+export async function gallery(
+  res: Response,
+  share: SharedLink,
+  openItem?: number,
+  uploadAllowed = false
+) {
   // publicBaseUrl is used for the og:image, which requires a fully qualified URL.
   // You can specify this in your docker-compose file via the PUBLIC_BASE_URL env var.
   const publicBaseUrl =
@@ -148,6 +154,19 @@ export async function gallery(res: Response, share: SharedLink, openItem?: numbe
     publicBaseUrl: toString(publicBaseUrl),
     path: '/share/' + share.key,
     showDownloadZip: downloadAllowed && !!getConfigOption('ipp.gallery.showDownloadZip', true),
+    showUpload: uploadAllowed,
+    uploadPath: uploadAllowed ? '/share/' + share.key + '/upload' : undefined,
+    maxFileSizeMb: uploadAllowed
+      ? Number(getConfigOption('ipp.upload.maxFileSizeMb', 500)) || 500
+      : undefined,
+    // One below the server limit (min 1, max 3) so a single visitor can't
+    // monopolize every Immich slot when others are uploading.
+    uploadConcurrency: uploadAllowed
+      ? Math.max(
+          1,
+          Math.min(3, (Number(getConfigOption('ipp.upload.concurrentUploads', 4)) || 4) - 1)
+        )
+      : undefined,
     showTitle: !!getConfigOption('ipp.gallery.showTitle', true),
     expiryDate: expiryDate(share),
     openItem,

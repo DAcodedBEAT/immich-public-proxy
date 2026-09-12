@@ -12,18 +12,20 @@ services:
     # THIS host will ever reach IPP, change it to "127.0.0.1:3000:3000" -
     # loopback is reachable from other processes on the same host either way,
     # so nothing is lost. Doing so also closes a real hole if you set
-    # IPP_TRUST_PROXY: anything that can still reach this port directly can
-    # forge X-Forwarded-For and defeat IP-based abuse blocking entirely.
+    # IPP_TRUST_PROXY (see docs/uploads.md): anything that can still reach
+    # this port directly can forge X-Forwarded-For and defeat IP-based abuse
+    # blocking entirely.
     ports:
       - "3000:3000"
     environment:
       PUBLIC_BASE_URL: https://your-proxy-url.com
       IMMICH_URL: http://your-internal-immich-server:2283
-    # Many concurrent connections (large galleries, zip downloads, lots of
-    # simultaneous visitors) can approach Docker's often-low default
-    # open-file-descriptor limit well before any other resource is a
-    # concern. Raising it is safe and effectively free for a proxy that
-    # otherwise mostly idles on open sockets.
+    # A large upload burst (many visitors, each holding several parallel
+    # connections while they wait for a concurrency slot) can approach
+    # Docker's often-low default open-file-descriptor limit well before any
+    # other resource is a concern. Raising it is safe and effectively free
+    # for a proxy that otherwise mostly idles on open sockets - not specific
+    # to uploads, just cheap headroom worth having by default.
     ulimits:
       nofile:
         soft: 65536

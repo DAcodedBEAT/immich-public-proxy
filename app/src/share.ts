@@ -34,6 +34,24 @@ export function canDownload(share: SharedLink): boolean {
   }
 }
 
+/**
+ * Whether upload is permitted for the given shared link. Requires all of:
+ * - `IMMICH_API_KEY` is set (the proxy-level gate; Immich's own setting is ignored without it)
+ * - the share owner turned on `allowUpload` for this link
+ * - `ipp.upload.requirePassword` isn't set, or `passwordVerified` is true
+ *
+ * `passwordVerified` must come from `isPasswordVerified`, not from merely
+ * checking that a password string exists (see that function's doc-comment
+ * for why - the naive check is bypassable for shares with no Immich
+ * password at all).
+ */
+export function canUpload(link: SharedLink, passwordVerified: boolean): boolean {
+  if (!process.env.IMMICH_API_KEY) return false
+  if (!link.allowUpload) return false
+  if (getConfigOption('ipp.upload.requirePassword', false) && !passwordVerified) return false
+  return true
+}
+
 const DEFAULT_EXPIRY_FORMAT = 'YYYY-MM-DD'
 
 /**

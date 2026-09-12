@@ -9,7 +9,12 @@ try {
   if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
 }
 
-import { enforceMinimumImmichVersion, startImmichHealthMonitor } from './immich'
+import {
+  enforceMinimumImmichVersion,
+  getSupportedMimeTypes,
+  startImmichHealthMonitor
+} from './immich'
+import { getConfigOption } from './config/access'
 import { loadConfig } from './config/loader'
 import { formatStartupSummary } from './utils/startupSummary'
 import { app, trustProxyHops } from './app'
@@ -47,7 +52,9 @@ const server = app.listen(port, () => {
       formatStartupSummary({
         trustProxyHops,
         banlistPath: process.env.IPP_BANLIST_PATH,
-        publicBaseUrl: process.env.PUBLIC_BASE_URL
+        publicBaseUrl: process.env.PUBLIC_BASE_URL,
+        uploadsEnabled: !!process.env.IMMICH_API_KEY,
+        uploadRequirePassword: !!getConfigOption('ipp.upload.requirePassword', false)
       })
   )
   // Bail out early if the Immich server is older than IPP supports, rather
@@ -58,4 +65,18 @@ const server = app.listen(port, () => {
   // only ever runs once, at startup. Advisory only (see its own doc-comment
   // for why this never exits the process the way the startup check can).
   startImmichHealthMonitor()
+  // Warm the Immich media-types cache so the first upload doesn't pay the
+  // round trip. Only relevant when uploads are possible at all; failures are
+  // logged inside and simply retried on the first upload.
+  if (process.env.IMMICH_API_KEY) {
+    getSupportedMimeTypes().catch(() => {
+      /* logged internally */
+    })
+  }
 })
+// Node's default requestTimeout (5 min for the ENTIRE request body) would
+// kill any large slow upload - a 2GB video on a residential uplink takes far
+// longer. Disable it: stalled upload connections are already cut by the 30s
+// idle-timeout stream, and headersTimeout (default 60s) still drops
+// connections that never send a request.
+server.requestTimeout = 0
