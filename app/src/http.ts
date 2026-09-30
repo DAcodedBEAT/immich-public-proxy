@@ -17,18 +17,6 @@ export function addResponseHeaders(res: Response): void {
 }
 
 /**
- * Wrap an async route handler so a rejected promise is passed to Express's
- * error chain (and on to `errorHandler`).
- */
-export function asyncHandler(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
-) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    fn(req, res, next).catch(next)
-  }
-}
-
-/**
  * Terminal Express error middleware. Logs the error server-side, then applies the
  * same privacy policy as any other invalid request.
  */

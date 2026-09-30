@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
 import express from 'express'
 import type { Server } from 'http'
 import type { AddressInfo } from 'net'
-import { asyncHandler, errorHandler } from '../src/http'
+import { errorHandler } from '../src/http'
 
 /*
-  Regression tests for the per-request crash class: under Express 4 a rejected
-  promise in an async route became an unhandledRejection, and index.ts used to
-  respond to that with process.exit(1) - one bad request took down the whole
-  container. asyncHandler + errorHandler must instead turn any thrown/rejected
-  route error into a plain 404 (the privacy policy: no upstream detail) while
-  the server keeps serving.
+  Regression tests for the per-request crash class: a rejected promise in an
+  async route used to become an unhandledRejection, and index.ts responded to
+  that with process.exit(1) - one bad request took down the whole container.
+  Express 5 forwards the rejection to errorHandler, which must turn any
+  thrown/rejected route error into a plain 404 (the privacy policy: no
+  upstream detail) while the server keeps serving.
 */
 
-describe('asyncHandler + errorHandler', () => {
+describe('async route rejections + errorHandler', () => {
   let server: Server
   let base: string
 
@@ -22,26 +22,17 @@ describe('asyncHandler + errorHandler', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const app = express()
-    app.get(
-      '/ok',
-      asyncHandler(async (_req, res) => {
-        res.send('ok')
-      })
-    )
-    app.get(
-      '/boom',
-      asyncHandler(async () => {
-        throw new TypeError("Cannot read properties of undefined (reading 'headers')")
-      })
-    )
-    app.get(
-      '/mid-stream',
-      asyncHandler(async (_req, res) => {
-        res.status(200)
-        res.write('partial')
-        throw new Error('upstream died mid-response')
-      })
-    )
+    app.get('/ok', async (_req, res) => {
+      res.send('ok')
+    })
+    app.get('/boom', async () => {
+      throw new TypeError("Cannot read properties of undefined (reading 'headers')")
+    })
+    app.get('/mid-stream', async (_req, res) => {
+      res.status(200)
+      res.write('partial')
+      throw new Error('upstream died mid-response')
+    })
     app.use(errorHandler)
 
     await new Promise<void>(resolve => {

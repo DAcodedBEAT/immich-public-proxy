@@ -2,7 +2,7 @@ import { assetFetchUrl, authHeadersForAsset } from '../immich'
 import { Response } from 'express-serve-static-core'
 import { Asset, SharedLink } from '../types'
 import { log } from '../utils/log'
-import archiver, { Archiver } from 'archiver'
+import type { Archiver } from 'archiver' with { 'resolution-mode': 'import' }
 import { sanitize } from '../utils/sanitize'
 import { resolveDownloadEndpoint, ImageEndpoint } from '../gallery/sizing'
 import { title } from '../share'
@@ -68,7 +68,9 @@ type FetchOutcome = FetchedAsset | { failure: Failure } | null
  * already compressed.
  */
 export async function downloadAssets(res: Response, share: SharedLink, assets: Asset[]) {
-  const archive = archiver('zip', { store: true })
+  // archiver 8 is ESM-only; this build is CommonJS, so it has to be imported dynamically.
+  const { ZipArchive } = await import('archiver')
+  const archive = new ZipArchive({ store: true })
   // Without a listener, an archiver 'error' emission would crash the process.
   archive.on('error', e => log(`Archiver error for share ${share.key}: ${e.message}`))
 
