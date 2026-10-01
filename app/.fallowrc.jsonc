@@ -9,5 +9,9 @@
   // points - loaded by the browser via <script type="module" src="...">
   // in the rendered gallery HTML, not imported by any other TS module, so
   // fallow's automatic entry detection can't see them.
-  "entry": ["src/client/init.ts", "src/client/upload.ts"]
+  "entry": ["src/client/init.ts", "src/client/upload.ts"],
+  // Client modules import the vendored libraries by their runtime URL, which
+  // the server maps to public/ (see the static route in app.ts). They are
+  // browser-resolved, so there is no file path for fallow to find.
+  "ignoreUnresolvedImports": ["/share/static/**"]
 }

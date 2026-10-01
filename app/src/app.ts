@@ -2,13 +2,13 @@ import express from 'express'
 import cookieSession from 'cookie-session'
 import {
   accessible,
-  fetchAssetDetail,
   getKeyTypeFromShare,
   getShareByKey,
   handleShareRequest,
   isId,
   isKey
 } from './immich'
+import { fetchAssetDetail } from './immich/assets'
 import { buildAssetMetadata } from './gallery/metadata'
 import crypto from 'crypto'
 import { assetBuffer } from './stream/asset'

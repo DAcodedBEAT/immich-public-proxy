@@ -37,8 +37,7 @@ export interface ExifInfo {
 }
 
 export enum AlbumType {
-  album = 'ALBUM',
-  individual = 'INDIVIDUAL'
+  album = 'ALBUM'
 }
 
 export interface Asset {

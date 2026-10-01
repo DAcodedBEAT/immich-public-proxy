@@ -1,4 +1,5 @@
-import { assetFetchUrl, authHeadersForAsset } from '../immich'
+import { authHeadersForAsset } from '../immich/api'
+import { assetFetchUrl } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import { Asset, SharedLink } from '../types'
 import { log } from '../utils/log'

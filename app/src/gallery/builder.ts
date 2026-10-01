@@ -1,4 +1,4 @@
-import { getVideoContentType, photoUrl, videoUrl } from '../immich'
+import { getVideoContentType, photoUrl, videoUrl } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import { Asset, AssetType, ImageSize, SharedLink } from '../types'
 import { getConfigOption, getNumericConfigOption } from '../config/access'

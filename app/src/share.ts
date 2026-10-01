@@ -20,16 +20,17 @@ export function title(share: SharedLink): string {
  * does not affect image quality (see `gallery/sizing.ts`).
  */
 export function canDownload(share: SharedLink): boolean {
-  const allowDownloadConfig = getConfigOption('ipp.allowDownload', 0) as DownloadAll
-  if (!allowDownloadConfig) {
-    // Downloading is disabled in config.json
-    return false
-  } else if (allowDownloadConfig === DownloadAll.always) {
-    // Always allowed to download in config.json
-    return true
-  } else {
-    // Return Immich's setting for this shared link
-    return !!share.allowDownload
+  const mode = (getConfigOption('ipp.allowDownload', DownloadAll.disabled) ||
+    DownloadAll.disabled) as DownloadAll
+  switch (mode) {
+    case DownloadAll.disabled:
+      return false
+    case DownloadAll.always:
+      return true
+    case DownloadAll.perImmich:
+    default:
+      // Return Immich's setting for this shared link
+      return !!share.allowDownload
   }
 }
 

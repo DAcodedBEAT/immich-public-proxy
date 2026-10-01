@@ -1,4 +1,5 @@
-import { assetFetchUrl, authHeadersForAsset, fetchAssetDetail, validateImageSize } from '../immich'
+import { authHeadersForAsset } from '../immich/api'
+import { assetFetchUrl, fetchAssetDetail, validateImageSize } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import { Asset, ImageSize, IncomingShareRequest, SharedLink } from '../types'
 import { respondToInvalidRequest } from '../invalidRequestHandler'
