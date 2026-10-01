@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { Writable } from 'stream'
 import type { Request, Response } from 'express-serve-static-core'
-import { assetBuffer } from '../src/stream/asset'
+import { assetBuffer, upstreamRangeHeader } from '../src/stream/asset'
 import { Asset, AssetType, ImageSize, IncomingShareRequest, KeyType } from '../src/types'
 
 afterEach(() => {
@@ -20,8 +20,8 @@ const asset: Asset = {
   originalMimeType: 'image/jpeg'
 }
 
-function makeRequest(method = 'GET'): IncomingShareRequest {
-  return { req: { method } as Request, key: 'testkey', range: '' }
+function makeRequest(method = 'GET', range = ''): IncomingShareRequest {
+  return { req: { method } as Request, key: 'testkey', range }
 }
 
 /*
@@ -203,5 +203,92 @@ describe('assetBuffer streaming', () => {
     expect(res.received).toBe(0)
     expect(source.cancelled).toBe(true)
     expect(res.headers['content-length']).toBe(String(4 * CHUNK))
+  })
+})
+
+describe('upstreamRangeHeader', () => {
+  it('caps an open-ended range to a single 2.5 MB chunk', () => {
+    expect(upstreamRangeHeader('bytes=0-')).toBe('bytes=0-2499999')
+    expect(upstreamRangeHeader('bytes=5000000-')).toBe('bytes=5000000-7499999')
+  })
+
+  it('passes an explicit end byte through', () => {
+    expect(upstreamRangeHeader('bytes=100-200')).toBe('bytes=100-200')
+  })
+
+  it('treats a missing or unparseable start as byte 0', () => {
+    expect(upstreamRangeHeader('bytes=-500')).toBe('bytes=0-500')
+    expect(upstreamRangeHeader('nonsense')).toBe('bytes=0-2499999')
+  })
+})
+
+describe('assetBuffer video playback ranges', () => {
+  /** Fetch stub that records the request headers and answers with a tiny body. */
+  function rangeFetch(
+    seen: { headers: Record<string, string>[] },
+    status: number,
+    headers: Record<string, string>
+  ) {
+    return vi.fn(async (_url: unknown, init?: RequestInit) => {
+      seen.headers.push({ ...(init?.headers as Record<string, string>) })
+      return new globalThis.Response(new Uint8Array(CHUNK), { status, headers })
+    })
+  }
+
+  it('requests a chunk, answers 206 and forwards the range headers', async () => {
+    const seen = { headers: [] as Record<string, string>[] }
+    vi.stubGlobal(
+      'fetch',
+      rangeFetch(seen, 206, {
+        'content-type': 'video/mp4',
+        'content-range': 'bytes 0-2499999/9999999',
+        'cache-control': 'private'
+      })
+    )
+    const res = new FakeRes()
+    const codes: number[] = []
+    res.status = (code: number) => {
+      codes.push(code)
+      return res
+    }
+    await assetBuffer(
+      makeRequest('GET', 'bytes=0-'),
+      asResponse(res),
+      asset,
+      ImageSize.original,
+      undefined,
+      true
+    )
+    expect(seen.headers[0].range).toBe('bytes=0-2499999')
+    expect(codes).toEqual([206])
+    expect(res.headers['accept-ranges']).toBe('bytes')
+    expect(res.headers['content-range']).toBe('bytes 0-2499999/9999999')
+    expect(res.headers['cache-control']).toBe('private')
+    expect(res.received).toBe(CHUNK)
+  })
+
+  it('serves the whole file with 200 when the client sent no Range', async () => {
+    const seen = { headers: [] as Record<string, string>[] }
+    vi.stubGlobal(
+      'fetch',
+      rangeFetch(seen, 200, {
+        'content-type': 'video/mp4',
+        'content-range': 'bytes 0-2499999/9999999',
+        'cache-control': 'private'
+      })
+    )
+    const res = new FakeRes()
+    const codes: number[] = []
+    res.status = (code: number) => {
+      codes.push(code)
+      return res
+    }
+    await assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original, undefined, true)
+    expect(seen.headers[0].range).toBeUndefined()
+    expect(codes).toEqual([])
+    expect(res.headers['accept-ranges']).toBe('bytes')
+    // Range-only headers must not leak onto a full 200 response
+    expect(res.headers['content-range']).toBeUndefined()
+    expect(res.headers['cache-control']).toBeUndefined()
   })
 })

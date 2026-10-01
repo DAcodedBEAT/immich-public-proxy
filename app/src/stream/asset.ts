@@ -9,6 +9,35 @@ import { pipeline } from 'stream/promises'
 import { readableFromWeb } from '../utils/webStream'
 import { log } from '../utils/log'
 
+/** Upstream response headers always passed through to the client. */
+const FORWARDED_HEADERS = ['content-type', 'content-length', 'last-modified', 'etag']
+/** Additional headers forwarded for a ranged (206) playback response. */
+const RANGE_FORWARDED_HEADERS = ['cache-control', 'content-range']
+/**
+ * Offset added to the range start when the client sent an open-ended range,
+ * giving a 2.5 MB chunk (inclusive end byte).
+ */
+const PLAYBACK_CHUNK_END_OFFSET = 2499999
+
+/**
+ * Everything needed to fetch one asset from Immich and shape the response:
+ * which upstream endpoint to use, what to send with the request, and what to
+ * do with the answer. `asset` may be a copy enriched with details fetched
+ * while planning.
+ */
+type AssetRequestPlan = {
+  asset: Asset
+  subpath: string
+  sizeQueryParam?: string
+  attachment: boolean
+  servedSize?: ImageSize
+  /** Headers added to the upstream fetch (currently only `range`). */
+  fetchHeaders: Record<string, string>
+  /** Upstream headers to forward to the client, if present. */
+  forwardHeaders: string[]
+  useVideoPlayback: boolean
+}
+
 /**
  * Stream an asset from Immich back to the client.
  *
@@ -25,71 +54,15 @@ export async function assetBuffer(
   share?: SharedLink,
   forceVideoPlayback = false
 ) {
-  /*
-  Abort the upstream fetch as soon as the visitor goes away, so a cancelled
-  download doesn't leave Immich streaming #288.
-  */
-  const upstream = new AbortController()
-  const onClose = () => {
-    if (!res.writableFinished) upstream.abort()
-  }
-  res.once('close', onClose)
-  if (res.closed) onClose()
+  const upstream = abortWhenClientLeaves(res)
+  const plan = await planAssetRequest(req, res, asset, size, share, forceVideoPlayback)
 
-  const headerList = ['content-type', 'content-length', 'last-modified', 'etag']
-  const fetchHeaders: Record<string, string> = {}
-  let subpath: string
-  let sizeQueryParam: string | undefined
-  let attachment = false
-  let servedSize: ImageSize | undefined
-
-  const requested = validateImageSize(size)
-  const useVideoPlayback =
-    forceVideoPlayback ||
-    (isVideoAsset(asset) && requested === ImageSize.original && share?.allowDownload === false)
-
-  if (useVideoPlayback) {
-    subpath = '/video/playback'
-    attachment = requested === ImageSize.original
-    servedSize = ImageSize.original
-    res.setHeader('accept-ranges', 'bytes')
-    // Only chunk when the client sent a Range header. A browser <video>
-    // element does, so playback still streams in 2.5 MB chunks. Clients
-    // that don't (wget, right-click "Save As", link unfurlers) get the
-    // full file with 200 OK; otherwise they'd save a truncated 2.5 MB
-    // partial response as the whole video.
-    if (req.range) {
-      const range = req.range.replace(/bytes=/, '').split('-')
-      const start = parseInt(range[0], 10) || 0
-      const end = parseInt(range[1], 10) || start + 2499999
-      fetchHeaders.range = `bytes=${start}-${end}`
-      headerList.push('cache-control', 'content-range')
-      res.status(206) // Partial Content
-    }
-  } else {
-    // Album "grid" items arrive without originalMimeType. The fullsize tier
-    // needs it to pick /original (web formats) vs ?size=fullsize (RAW/HEIF), so
-    // fetch the asset detail on demand (cached) before resolving.
-    if (requested === ImageSize.fullsize && !asset.originalMimeType) {
-      const detail = await fetchAssetDetail(asset)
-      if (detail?.originalMimeType) asset = { ...asset, originalMimeType: detail.originalMimeType }
-    }
-    const endpoint =
-      requested === ImageSize.original
-        ? resolveDownloadEndpoint(asset, share?.allowDownload !== false)
-        : resolveImageEndpoint(requested, asset)
-    subpath = endpoint.subpath
-    sizeQueryParam = endpoint.sizeQueryParam
-    attachment = endpoint.attachment
-    servedSize = endpoint.servedSize
-  }
-
-  const url = assetFetchUrl(asset, subpath, sizeQueryParam)
-  const reqHeaders = await authHeadersForAsset(asset)
+  const url = assetFetchUrl(plan.asset, plan.subpath, plan.sizeQueryParam)
+  const reqHeaders = await authHeadersForAsset(plan.asset)
   let data: globalThis.Response
   try {
     data = await fetch(url, {
-      headers: { ...fetchHeaders, ...reqHeaders },
+      headers: { ...plan.fetchHeaders, ...reqHeaders },
       signal: upstream.signal
     })
   } catch (e) {
@@ -98,35 +71,20 @@ export async function assetBuffer(
   }
 
   if (data.status < 200 || data.status >= 300) {
-    let immichMessage = ''
-    try {
-      const json = await data.json()
-      if (json.message) immichMessage = '\nResponse from Immich: ' + json.message
-    } catch (e) {}
+    const immichMessage = await upstreamErrorDetail(data)
     respondToInvalidRequest(
       res,
       404,
-      'Failed response from Immich for asset ' + asset.id + ' on this URL:\n' + url + immichMessage
+      'Failed response from Immich for asset ' +
+        plan.asset.id +
+        ' on this URL:\n' +
+        url +
+        immichMessage
     )
     return
   }
 
-  if (attachment) {
-    res.setHeader('X-Accel-Buffering', 'no')
-    if (asset.originalFileName) {
-      // Playback downloads serve Immich's transcode, so the filename extension
-      // must follow the response's content-type, not the original file's.
-      const playbackMime = useVideoPlayback
-        ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
-        : undefined
-      const filename = encodeURI(getFilename(asset, servedSize, playbackMime))
-      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
-    }
-  }
-  headerList.forEach(header => {
-    const value = data.headers.get(header)
-    if (value) res.setHeader(header, value)
-  })
+  applyResponseHeaders(res, data, plan)
 
   // Express routes HEAD through the GET handler and Node silently drops the
   // body writes, so without this we'd read the whole file from Immich for
@@ -137,17 +95,159 @@ export async function assetBuffer(
     return
   }
 
-  /*
-  pipeline (rather than a WritableStream sink around res.write) honours
-  backpressure from `res`: a LAN-speed read from Immich can't pile up in
-  memory ahead of a slow visitor #288.
-  */
+  await streamToClient(data.body, res, plan.asset.id)
+}
+
+/**
+ * Abort the upstream fetch as soon as the visitor goes away, so a cancelled
+ * download doesn't leave Immich streaming #288.
+ */
+function abortWhenClientLeaves(res: Response): AbortController {
+  const upstream = new AbortController()
+  const onClose = () => {
+    if (!res.writableFinished) upstream.abort()
+  }
+  res.once('close', onClose)
+  if (res.closed) onClose()
+  return upstream
+}
+
+/**
+ * Decide how to fetch the requested size of this asset. Sets the response
+ * headers and status that depend only on the request (accept-ranges, 206).
+ */
+async function planAssetRequest(
+  req: IncomingShareRequest,
+  res: Response,
+  asset: Asset,
+  size: ImageSize | string | undefined,
+  share: SharedLink | undefined,
+  forceVideoPlayback: boolean
+): Promise<AssetRequestPlan> {
+  const requested = validateImageSize(size)
+  const useVideoPlayback =
+    forceVideoPlayback ||
+    (isVideoAsset(asset) && requested === ImageSize.original && share?.allowDownload === false)
+  return useVideoPlayback
+    ? planVideoPlayback(req, res, asset, requested)
+    : planImageRequest(asset, requested, share)
+}
+
+/** Plan a `/video/playback` response, chunked only if the client asked for a range. */
+function planVideoPlayback(
+  req: IncomingShareRequest,
+  res: Response,
+  asset: Asset,
+  requested: ImageSize
+): AssetRequestPlan {
+  res.setHeader('accept-ranges', 'bytes')
+  // Only chunk when the client sent a Range header. A browser <video>
+  // element does, so playback still streams in 2.5 MB chunks. Clients
+  // that don't (wget, right-click "Save As", link unfurlers) get the
+  // full file with 200 OK; otherwise they'd save a truncated 2.5 MB
+  // partial response as the whole video.
+  const range = req.range ? upstreamRangeHeader(req.range) : undefined
+  if (range) res.status(206) // Partial Content
+  return {
+    asset,
+    subpath: '/video/playback',
+    attachment: requested === ImageSize.original,
+    servedSize: ImageSize.original,
+    fetchHeaders: range ? { range } : {},
+    forwardHeaders: range
+      ? [...FORWARDED_HEADERS, ...RANGE_FORWARDED_HEADERS]
+      : [...FORWARDED_HEADERS],
+    useVideoPlayback: true
+  }
+}
+
+/**
+ * Translate a client `Range` request header into the one we send upstream.
+ * An absent or unparseable start means byte 0, and an open-ended range is
+ * capped to a single 2.5 MB chunk.
+ */
+export function upstreamRangeHeader(clientRange: string): string {
+  const range = clientRange.replace(/bytes=/, '').split('-')
+  const start = parseInt(range[0], 10) || 0
+  const end = parseInt(range[1], 10) || start + PLAYBACK_CHUNK_END_OFFSET
+  return `bytes=${start}-${end}`
+}
+
+/** Plan a still-image or original-file response. */
+async function planImageRequest(
+  asset: Asset,
+  requested: ImageSize,
+  share: SharedLink | undefined
+): Promise<AssetRequestPlan> {
+  // Album "grid" items arrive without originalMimeType. The fullsize tier
+  // needs it to pick /original (web formats) vs ?size=fullsize (RAW/HEIF), so
+  // fetch the asset detail on demand (cached) before resolving.
+  if (requested === ImageSize.fullsize && !asset.originalMimeType) {
+    const detail = await fetchAssetDetail(asset)
+    if (detail?.originalMimeType) asset = { ...asset, originalMimeType: detail.originalMimeType }
+  }
+  const endpoint =
+    requested === ImageSize.original
+      ? resolveDownloadEndpoint(asset, share?.allowDownload !== false)
+      : resolveImageEndpoint(requested, asset)
+  return {
+    asset,
+    subpath: endpoint.subpath,
+    sizeQueryParam: endpoint.sizeQueryParam,
+    attachment: endpoint.attachment,
+    servedSize: endpoint.servedSize,
+    fetchHeaders: {},
+    forwardHeaders: [...FORWARDED_HEADERS],
+    useVideoPlayback: false
+  }
+}
+
+/**
+ * Immich's error body, if it carries a message, as a suffix for the server
+ * log. Never sent to the client - see respondToInvalidRequest.
+ */
+async function upstreamErrorDetail(data: globalThis.Response): Promise<string> {
   try {
-    await pipeline(readableFromWeb(data.body), res)
+    const json = await data.json()
+    if (json.message) return '\nResponse from Immich: ' + json.message
+  } catch (e) {}
+  return ''
+}
+
+/** Set the download headers (if any) and forward the upstream headers. */
+function applyResponseHeaders(res: Response, data: globalThis.Response, plan: AssetRequestPlan) {
+  if (plan.attachment) {
+    res.setHeader('X-Accel-Buffering', 'no')
+    if (plan.asset.originalFileName) {
+      // Playback downloads serve Immich's transcode, so the filename extension
+      // must follow the response's content-type, not the original file's.
+      const playbackMime = plan.useVideoPlayback
+        ? (data.headers.get('content-type') || '').split(';')[0].trim() || undefined
+        : undefined
+      const filename = encodeURI(getFilename(plan.asset, plan.servedSize, playbackMime))
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
+    }
+  }
+  plan.forwardHeaders.forEach(header => {
+    const value = data.headers.get(header)
+    if (value) res.setHeader(header, value)
+  })
+}
+
+/**
+ * Pipe the upstream body to the visitor.
+ *
+ * pipeline (rather than a WritableStream sink around res.write) honours
+ * backpressure from `res`: a LAN-speed read from Immich can't pile up in
+ * memory ahead of a slow visitor #288.
+ */
+async function streamToClient(body: ReadableStream<Uint8Array>, res: Response, assetId: string) {
+  try {
+    await pipeline(readableFromWeb(body), res)
   } catch (e) {
     if (!isClientAbort(e)) {
       log.warn(
-        `Stream from Immich failed for asset ${asset.id}: ${e instanceof Error ? e.message : String(e)}`
+        `Stream from Immich failed for asset ${assetId}: ${e instanceof Error ? e.message : String(e)}`
       )
     }
   }
