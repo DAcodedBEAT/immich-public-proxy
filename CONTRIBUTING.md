@@ -20,7 +20,7 @@ Immich Public Proxy (IPP) exists to share Immich photos publicly without exposin
 
 Request flow for a typical share URL like `https://proxy.example.com/share/<key>`:
 
-1. Express routes in `app/src/index.ts` receive the request.
+1. Express routes in `app/src/app.ts` receive the request.
 2. `app/src/immich.ts` fetches the share metadata from Immich over the local network (through `fetchSharedLink` in `@ipp/core`), validates it, and returns the asset list.
 3. For a gallery, `app/src/gallery/builder.ts` builds the view-model and `app/src/view/gallery.tsx` renders it server-side with Preact. The page embeds a JSON init block consumed by the client.
 4. The client gallery lives in `app/src/client/` (TypeScript ES modules, compiled file-for-file by `tsc` into `app/public/js/`). It wires PhotoSwipe v5 with a virtualized justified-rows layout. There is no client-side framework hydration.
@@ -44,7 +44,7 @@ shared/                   @ipp/core - read-side only, knows nothing about galler
     immich/share.ts       fetchSharedLink, password login + token cache, auth headers, title, slug-link gate
     config/loader.ts      loadConfig() reads env / file; the app passes its default path
     config/access.ts      getConfigOption() reads the loaded config
-    http.ts               Operator-configured and no-store response headers, abortOnClose, asyncHandler, CORE_PUBLIC_DIR
+    http.ts               Operator-configured and no-store response headers, abortOnClose, constrainParam, CORE_PUBLIC_DIR
     invalidRequest.ts     The 404 policy (never cached), errorHandler, and setInvalidRequestHandler for the app's own handler file
     session.ts            Cookie session, decodeCookie, unlock handler, invalid-password response
     encrypt.ts            Cookie-session encryption for password-protected shares
@@ -58,9 +58,10 @@ app/
   package.json            IPP's manifest; its version is the release version
   tsconfig.json           Server TypeScript config (compiles src/ to dist/; references shared/)
   tsconfig.client.json    Client TypeScript config (compiles src/client/ + src/shared/ to public/js/)
-  vitest.config.ts        Unit-test runner config; aliases @ipp/core to its source
+  vitest.config.mts       Unit-test runner config; aliases @ipp/core to its source
   src/
-    index.ts              Express setup and routes
+    index.ts              Entry point: startup checks, listen, process handlers
+    app.ts                Express setup and routes
     immich.ts             Share lookup with album enumeration and cache, asset detail, IPP URLs
     invalidRequestHandler.ts  IPP's 404 handler; operators may replace the compiled file by a mount
     share.ts              Share-level policy (canDownload, expiry date, motion photos, upload link and probe)
@@ -84,7 +85,8 @@ app/
 upload-app/               immich-public-proxy-upload - one page per share; streams visitor files to Immich's POST /assets
   config.json             Default ipp.upload.* options; no responseHeaders
   src/
-    index.ts              Express setup and routes, served both under /upload and at the root
+    index.ts              Entry point: listen, process handlers
+    app.ts                Express setup and routes, served both under /upload and at the root
     config.ts             Env and ipp.upload.* readers
     share.ts              Share lookup through core, cached 60 s
     gate.ts               The upload permit: the share's Immich toggle and the slug-link gate
@@ -173,7 +175,7 @@ Beyond unit tests, exercise the gallery end-to-end against a real Immich instanc
 
 **Configuration.** New options go in `app/config.json` under the appropriate `ipp.*` namespace, read via `getConfigOption`, and documented on the page for their group under `docs/config/` (see `docs/README.md` for the conventions). `npm test` and the docs build fail until the page matches. Prefer a group toggle plus per-field overrides over a single flat boolean when several related toggles cluster, following the `ipp.showMetadata` pattern. Rename a key only in a major version: the old name simply stops being read (no compatibility shim), and the rename gets a row in Renamed config keys (`docs/config/upgrading.md`) plus a line in that release's upgrade notes.
 
-**Privacy of responses.** Always return 404 for invalid or upstream-failed requests. Use `respondToInvalidRequest` from `@ipp/core` rather than crafting ad-hoc error responses; it calls IPP's `invalidRequestHandler`, which index.ts registers at startup. Do not surface Immich status codes or error bodies to the client.
+**Privacy of responses.** Always return 404 for invalid or upstream-failed requests. Use `respondToInvalidRequest` from `@ipp/core` rather than crafting ad-hoc error responses; it calls IPP's `invalidRequestHandler`, which app.ts registers at startup. Do not surface Immich status codes or error bodies to the client.
 
 **Escaping.** Any string that originates from Immich and is embedded into HTML by the SSR templates must be escaped (use `escapeHtml` from `@ipp/core`). Strings that cross to the client via the init JSON block stay as plain text and are rendered with `textContent`, not `innerHTML` - that retired the "pre-escaped HTML over the wire" contract that the early gallery shipped with.
 
