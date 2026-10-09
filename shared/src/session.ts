@@ -1,9 +1,9 @@
 import crypto from 'crypto'
 import cookieSession from 'cookie-session'
-import dayjs from 'dayjs'
 import { NextFunction, Request, Response } from 'express-serve-static-core'
 import { decrypt, encrypt } from './encrypt'
 import { isKey } from './immich/client'
+import { localTimestamp, parseDate } from './utils/dateFormat'
 import { log } from './utils/log'
 import { toString } from './utils/text'
 
@@ -54,7 +54,7 @@ export function decodeCookie(req: Request, _res: Response, next: NextFunction) {
           cr: toString(session.cr)
         })
       )
-      if (payload?.expires && dayjs(payload.expires) > dayjs()) {
+      if (payload?.expires && parseDate(payload.expires) > new Date()) {
         req.password = payload.password
       }
     } catch (e) {}
@@ -76,7 +76,7 @@ export function storeUnlock(req: Request, key: string, password: string) {
   req.session[key] = encrypt(
     JSON.stringify({
       password,
-      expires: dayjs().add(1, 'hour').format()
+      expires: localTimestamp(new Date(Date.now() + 60 * 60 * 1000))
     })
   )
 }

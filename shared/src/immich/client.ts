@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { localTimestamp } from '../utils/dateFormat'
 import { ImmichVersion, KeyType } from '../types'
 import { log } from '../utils/log'
 
@@ -142,7 +142,7 @@ export async function enforceMinimumImmichVersion(): Promise<void> {
   }
   if (!isImmichVersionSupported(version)) {
     console.error(
-      dayjs().format() +
+      localTimestamp() +
         ' FATAL: Immich server is version ' +
         formatVersion(version) +
         ', but IPP requires Immich ' +
