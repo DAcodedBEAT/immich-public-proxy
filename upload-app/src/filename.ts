@@ -28,7 +28,7 @@ export const DEFAULT_FIELD_SEPARATOR = ','
  * Whether `separator` can end a field: one character, kept by `sanitize`, not
  * in `prefix`, and never part of a slug, an extension or a trimmed stem.
  */
-export function isUsableSeparator (separator: unknown, prefix: string): separator is string {
+export function isUsableSeparator(separator: unknown, prefix: string): separator is string {
   // Counted by code point, so an emoji is one character
   if (typeof separator !== 'string' || [...separator].length !== 1) return false
   if (sanitize(separator) !== separator || storedPrefix(prefix).includes(separator)) return false
@@ -40,9 +40,10 @@ export function isUsableSeparator (separator: unknown, prefix: string): separato
  * script, runs of anything else become one hyphen. Empty when nothing usable
  * is left. A slug never contains a separator.
  */
-export function uploaderSlug (raw: unknown): string {
+export function uploaderSlug(raw: unknown): string {
   if (typeof raw !== 'string') return ''
-  return raw.normalize('NFC')
+  return raw
+    .normalize('NFC')
     .replace(formatCharsRe, '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, '-')
@@ -52,12 +53,12 @@ export function uploaderSlug (raw: unknown): string {
 }
 
 /** The prefix as it appears in a stored filename: sanitised and trimmed. */
-export function storedPrefix (prefix: string): string {
+export function storedPrefix(prefix: string): string {
   return sanitize(prefix).trim()
 }
 
 /** The header for these fields, in order, or empty when none has a value. */
-function fieldHeader (fields: string[], separator: string): string {
+function fieldHeader(fields: string[], separator: string): string {
   if (!fields.some(Boolean)) return ''
   return fields.map(field => field + separator).join('')
 }
@@ -69,9 +70,14 @@ function fieldHeader (fields: string[], separator: string): string {
  * is left, or when there is no extension: Immich types an asset by its
  * extension and would refuse it.
  */
-export function uploadFilename (raw: unknown, prefix: string, uploader = '', separator = DEFAULT_FIELD_SEPARATOR): string | undefined {
+export function uploadFilename(
+  raw: unknown,
+  prefix: string,
+  uploader = '',
+  separator = DEFAULT_FIELD_SEPARATOR
+): string | undefined {
   if (typeof raw !== 'string') return undefined
-  const base = (raw.normalize('NFC').replace(formatCharsRe, '').split(/[\\/]/).pop() || '')
+  const base = raw.normalize('NFC').replace(formatCharsRe, '').split(/[\\/]/).pop() || ''
   // Split the extension off first: `sanitize` truncates at 254 characters,
   // which on a very long name would cut the extension away.
   const parts = base.match(/^(.*)(\.[A-Za-z0-9]{1,16})$/)
@@ -92,9 +98,9 @@ export function uploadFilename (raw: unknown, prefix: string, uploader = '', sep
 
 /** What a stored filename says about who sent it, from `readUploadFilename`. */
 export type StoredUpload =
-  | { kind: 'named', uploader: string }
+  | { kind: 'named'; uploader: string }
   | { kind: 'anonymous' }
-  | { kind: 'unreadable', reason: string }
+  | { kind: 'unreadable'; reason: string }
 
 /**
  * Read the visitor fields back from a name that `uploadFilename` stored.
@@ -105,7 +111,11 @@ export type StoredUpload =
  * visitor's filename, so `ipp_upload_Venice, Italy.jpg` is not a visitor
  * called `Venice`.
  */
-export function readUploadFilename (name: string, prefix: string, separator: string): StoredUpload | undefined {
+export function readUploadFilename(
+  name: string,
+  prefix: string,
+  separator: string
+): StoredUpload | undefined {
   if (!prefix || !name.startsWith(prefix)) return undefined
   const rest = name.slice(prefix.length)
   if (!rest.includes(separator)) return { kind: 'anonymous' }
@@ -115,7 +125,10 @@ export function readUploadFilename (name: string, prefix: string, separator: str
   // `uploadFilename` trims the original, so a leading space means the
   // separator was part of the visitor's own filename
   if (original === '' || original.trimStart() !== original) {
-    return { kind: 'unreadable', reason: 'the text after the separator is not a filename IPP wrote' }
+    return {
+      kind: 'unreadable',
+      reason: 'the text after the separator is not a filename IPP wrote'
+    }
   }
   const uploader = fields[0]
   if (uploader === '') return { kind: 'anonymous' }

@@ -4,7 +4,7 @@ services:
     container_name: immich-public-proxy
     restart: always
     ports:
-      - "3000:3000"
+      - '3000:3000'
     read_only: true
     cap_drop:
       - ALL

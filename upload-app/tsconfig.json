@@ -13,27 +13,13 @@
     "importHelpers": true,
     "isolatedModules": true,
     "strictNullChecks": true,
-    "lib": [
-      "DOM",
-      "ES2021"
-    ],
+    "lib": ["DOM", "ES2021"],
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "tests",
-    "vitest.config.ts",
-    "src/client"
-  ],
-  "references": [
-    { "path": "../shared" }
-  ]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "tests", "vitest.config.ts", "src/client"],
+  "references": [{ "path": "../shared" }]
 }

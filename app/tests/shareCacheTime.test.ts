@@ -8,9 +8,10 @@ import { getShareByKey } from '../src/immich'
   from a file.
 */
 const cfg: Record<string, unknown> = {}
-vi.mock('@ipp/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@ipp/core')>(),
-  getNumericConfigOption: (path: string, fallback: number) => (path in cfg ? Number(cfg[path]) : fallback)
+vi.mock('@ipp/core', async importOriginal => ({
+  ...(await importOriginal<typeof import('@ipp/core')>()),
+  getNumericConfigOption: (path: string, fallback: number) =>
+    path in cfg ? Number(cfg[path]) : fallback
 }))
 
 const individualShare = {
@@ -19,14 +20,23 @@ const individualShare = {
   allowDownload: true,
   expiresAt: null,
   showMetadata: true,
-  assets: [{ id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', type: 'IMAGE', isTrashed: false, thumbhash: 'hashA' }]
+  assets: [
+    {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      type: 'IMAGE',
+      isTrashed: false,
+      thumbhash: 'hashA'
+    }
+  ]
 }
 
-function stubImmich () {
+function stubImmich() {
   const fetchMock = vi.fn(async () => ({
     ok: true,
     status: 200,
-    headers: { get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    headers: {
+      get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null)
+    },
     json: async () => individualShare
   }))
   vi.stubGlobal('fetch', fetchMock)
@@ -35,8 +45,8 @@ function stubImmich () {
 
 let keyCounter = 0
 /** A fresh key per test, because getShareByKey caches by key. */
-function uniqueKey () {
-  return 'cache-key-' + (keyCounter++)
+function uniqueKey() {
+  return 'cache-key-' + keyCounter++
 }
 
 describe('ipp.shareCacheTime', () => {
@@ -80,7 +90,10 @@ describe('ipp.shareCacheTime', () => {
     const fetchMock = stubImmich()
     const key = uniqueKey()
     // Concurrent misses still share one Immich call
-    await Promise.all([getShareByKey(key, undefined, KeyType.key), getShareByKey(key, undefined, KeyType.key)])
+    await Promise.all([
+      getShareByKey(key, undefined, KeyType.key),
+      getShareByKey(key, undefined, KeyType.key)
+    ])
     expect(fetchMock).toHaveBeenCalledTimes(1)
     vi.advanceTimersByTime(999)
     await getShareByKey(key, undefined, KeyType.key)

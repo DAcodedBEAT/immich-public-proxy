@@ -23,7 +23,7 @@ describe('unlockHandler', () => {
 
   afterAll(() => server?.close())
 
-  async function unlock (body: unknown): Promise<Response> {
+  async function unlock(body: unknown): Promise<Response> {
     return fetch(base + '/share/unlock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -90,12 +90,14 @@ describe('copyUnlock', () => {
 
   afterAll(() => server?.close())
 
-  async function send (path: string, body?: unknown): Promise<string> {
+  async function send(path: string, body?: unknown): Promise<string> {
     const res = await fetch(base + path, {
       method: body ? 'POST' : 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: Object.entries(cookies).map(([k, v]) => k + '=' + v).join('; ')
+        Cookie: Object.entries(cookies)
+          .map(([k, v]) => k + '=' + v)
+          .join('; ')
       },
       body: body ? JSON.stringify(body) : undefined
     })
@@ -107,7 +109,7 @@ describe('copyUnlock', () => {
     return res.text()
   }
 
-  async function unlockSlug () {
+  async function unlockSlug() {
     await send('/share/unlock', { key: 'my-slug', password: 'hunter2' })
     return send('/s/my-slug')
   }

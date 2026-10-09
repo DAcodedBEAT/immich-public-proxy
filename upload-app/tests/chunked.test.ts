@@ -12,7 +12,7 @@ afterEach(() => {
 
 const CREATED: ForwardResult = { ok: true, status: 'created', id: 'a1', bytes: 0 }
 
-function admitted (size: number): Admitted {
+function admitted(size: number): Admitted {
   return {
     link: share(),
     permit: {} as UploadPermit,
@@ -27,15 +27,19 @@ function admitted (size: number): Admitted {
 }
 
 /** A stand-in for `forwardUpload` that drains the body, as the request to Immich would. */
-function fakeForward (answer: () => ForwardResult = () => CREATED) {
+function fakeForward(answer: () => ForwardResult = () => CREATED) {
   const received: Buffer[] = []
   const signals: AbortSignal[] = []
-  const forward = async (_permit: UploadPermit, upload: IncomingUpload, signal: AbortSignal): Promise<ForwardResult> => {
+  const forward = async (
+    _permit: UploadPermit,
+    upload: IncomingUpload,
+    signal: AbortSignal
+  ): Promise<ForwardResult> => {
     signals.push(signal)
     const parts: Buffer[] = []
     try {
       for await (const part of upload.body) parts.push(part)
-    } catch { }
+    } catch {}
     if (signal.aborted) return { ok: false, status: 499, reason: 'Visitor cancelled the upload' }
     received.push(Buffer.concat(parts))
     return answer()
@@ -53,9 +57,20 @@ describe('createChunkedUploads', () => {
     const uploads = createChunkedUploads({ chunkSize: 4, forward })
     const upload = admitted(file.length)
     const id = uploads.start(upload, 'key')
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({ kind: 'accepted', offset: 4 })
-    expect(await uploads.receive(id, 'key', 4, 4, chunk(file.subarray(4, 8)))).toEqual({ kind: 'accepted', offset: 8 })
-    expect(await uploads.receive(id, 'key', 8, 2, chunk(file.subarray(8)))).toEqual({ kind: 'finished', admitted: upload, result: CREATED, repeat: false })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({
+      kind: 'accepted',
+      offset: 4
+    })
+    expect(await uploads.receive(id, 'key', 4, 4, chunk(file.subarray(4, 8)))).toEqual({
+      kind: 'accepted',
+      offset: 8
+    })
+    expect(await uploads.receive(id, 'key', 8, 2, chunk(file.subarray(8)))).toEqual({
+      kind: 'finished',
+      admitted: upload,
+      result: CREATED,
+      repeat: false
+    })
     expect(received).toEqual([file])
   })
 
@@ -64,8 +79,14 @@ describe('createChunkedUploads', () => {
     const uploads = createChunkedUploads({ chunkSize: 4, forward })
     const id = uploads.start(admitted(file.length), 'key')
     await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({ kind: 'accepted', offset: 4 })
-    expect(await uploads.receive(id, 'key', 8, 2, chunk(file.subarray(8)))).toEqual({ kind: 'conflict', offset: 4 })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({
+      kind: 'accepted',
+      offset: 4
+    })
+    expect(await uploads.receive(id, 'key', 8, 2, chunk(file.subarray(8)))).toEqual({
+      kind: 'conflict',
+      offset: 4
+    })
     await uploads.receive(id, 'key', 4, 4, chunk(file.subarray(4, 8)))
     await uploads.receive(id, 'key', 8, 2, chunk(file.subarray(8)))
     expect(received).toEqual([file])
@@ -75,12 +96,17 @@ describe('createChunkedUploads', () => {
     const { forward, received } = fakeForward()
     const uploads = createChunkedUploads({ chunkSize: 10, forward })
     const id = uploads.start(admitted(file.length), 'key')
-    const cut = Readable.from((async function * () {
-      yield file.subarray(0, 3)
-      throw new Error('Connection lost')
-    })())
+    const cut = Readable.from(
+      (async function* () {
+        yield file.subarray(0, 3)
+        throw new Error('Connection lost')
+      })()
+    )
     expect(await uploads.receive(id, 'key', 0, 10, cut)).toEqual({ kind: 'conflict', offset: 3 })
-    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({ kind: 'finished', result: CREATED })
+    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({
+      kind: 'finished',
+      result: CREATED
+    })
     expect(received).toEqual([file])
   })
 
@@ -92,7 +118,10 @@ describe('createChunkedUploads', () => {
     const staleOutcome = uploads.receive(id, 'key', 0, 10, stale)
     stale.write(file.subarray(0, 3))
     await tick()
-    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({ kind: 'finished', result: CREATED })
+    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({
+      kind: 'finished',
+      result: CREATED
+    })
     expect(await staleOutcome).toMatchObject({ kind: 'conflict' })
     expect(received).toEqual([file])
   })
@@ -101,7 +130,9 @@ describe('createChunkedUploads', () => {
     const uploads = createChunkedUploads({ chunkSize: 4, forward: fakeForward().forward })
     const id = uploads.start(admitted(file.length), 'key')
     expect(await uploads.receive(id, 'other-key', 0, 4, chunk(file))).toEqual({ kind: 'gone' })
-    expect(await uploads.receive('0'.repeat(32), 'key', 0, 4, chunk(file))).toEqual({ kind: 'gone' })
+    expect(await uploads.receive('0'.repeat(32), 'key', 0, 4, chunk(file))).toEqual({
+      kind: 'gone'
+    })
     expect(await uploads.receive('not-an-id', 'key', 0, 4, chunk(file))).toEqual({ kind: 'gone' })
     expect(uploads.cancel(id, 'other-key')).toBe(false)
   })
@@ -110,10 +141,15 @@ describe('createChunkedUploads', () => {
     const uploads = createChunkedUploads({ chunkSize: 4, forward: fakeForward().forward })
     const id = uploads.start(admitted(6), 'key')
     for (const length of [0, 5]) {
-      expect(await uploads.receive(id, 'key', 0, length, chunk(Buffer.alloc(length)))).toMatchObject({ kind: 'refused', status: 400 })
+      expect(
+        await uploads.receive(id, 'key', 0, length, chunk(Buffer.alloc(length)))
+      ).toMatchObject({ kind: 'refused', status: 400 })
     }
     await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))
-    expect(await uploads.receive(id, 'key', 4, 4, chunk(file.subarray(4, 8)))).toMatchObject({ kind: 'refused', status: 400 })
+    expect(await uploads.receive(id, 'key', 4, 4, chunk(file.subarray(4, 8)))).toMatchObject({
+      kind: 'refused',
+      status: 400
+    })
   })
 
   it('gives a retried last chunk the same answer, without finishing twice', async () => {
@@ -122,16 +158,31 @@ describe('createChunkedUploads', () => {
     const id = uploads.start(upload, 'key')
     await uploads.receive(id, 'key', 0, 10, chunk(file))
     const again = chunk(file)
-    expect(await uploads.receive(id, 'key', 0, 10, again)).toEqual({ kind: 'finished', admitted: upload, result: CREATED, repeat: true })
+    expect(await uploads.receive(id, 'key', 0, 10, again)).toEqual({
+      kind: 'finished',
+      admitted: upload,
+      result: CREATED,
+      repeat: true
+    })
     // Read before the answer, so the browser sees the answer rather than a closed connection
     expect(again.readableEnded).toBe(true)
   })
 
   it('returns Immich refusing the file on the last chunk', async () => {
-    const refused: ForwardResult = { ok: false, status: 400, reason: 'Immich would not accept this file' }
-    const uploads = createChunkedUploads({ chunkSize: 10, forward: fakeForward(() => refused).forward })
+    const refused: ForwardResult = {
+      ok: false,
+      status: 400,
+      reason: 'Immich would not accept this file'
+    }
+    const uploads = createChunkedUploads({
+      chunkSize: 10,
+      forward: fakeForward(() => refused).forward
+    })
     const id = uploads.start(admitted(file.length), 'key')
-    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({ kind: 'finished', result: refused })
+    expect(await uploads.receive(id, 'key', 0, 10, chunk(file))).toMatchObject({
+      kind: 'finished',
+      result: refused
+    })
   })
 
   it('returns a request to Immich that failed before the last chunk, once', async () => {
@@ -139,8 +190,16 @@ describe('createChunkedUploads', () => {
     const uploads = createChunkedUploads({ chunkSize: 4, forward: async () => failed })
     const id = uploads.start(admitted(file.length), 'key')
     await tick()
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toMatchObject({ kind: 'finished', result: failed, repeat: false })
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toMatchObject({ kind: 'finished', result: failed, repeat: true })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toMatchObject({
+      kind: 'finished',
+      result: failed,
+      repeat: false
+    })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toMatchObject({
+      kind: 'finished',
+      result: failed,
+      repeat: true
+    })
   })
 
   it('cancels an upload no chunk arrives for: aborts Immich, releases the budget, forgets the id', async () => {
@@ -175,9 +234,15 @@ describe('createChunkedUploads', () => {
     const { forward, signals } = fakeForward()
     const uploads = createChunkedUploads({ chunkSize: 4, idleMs: 1000, forward })
     const id = uploads.start(admitted(file.length), 'key')
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({ kind: 'accepted', offset: 4 })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({
+      kind: 'accepted',
+      offset: 4
+    })
     await vi.advanceTimersByTimeAsync(500)
-    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({ kind: 'accepted', offset: 4 })
+    expect(await uploads.receive(id, 'key', 0, 4, chunk(file.subarray(0, 4)))).toEqual({
+      kind: 'accepted',
+      offset: 4
+    })
     const empty = uploads.receive(id, 'key', 4, 4, new PassThrough())
     await vi.advanceTimersByTimeAsync(400)
     const replacement = uploads.receive(id, 'key', 4, 4, new PassThrough())
@@ -205,10 +270,18 @@ describe('createChunkedUploads', () => {
   it('gives Immich one idle period to answer after the last byte', async () => {
     vi.useFakeTimers()
     const signals: AbortSignal[] = []
-    const silent = async (_permit: UploadPermit, upload: IncomingUpload, signal: AbortSignal): Promise<ForwardResult> => {
+    const silent = async (
+      _permit: UploadPermit,
+      upload: IncomingUpload,
+      signal: AbortSignal
+    ): Promise<ForwardResult> => {
       signals.push(signal)
       upload.body.resume()
-      return await new Promise(resolve => signal.addEventListener('abort', () => resolve({ ok: false, status: 499, reason: 'Aborted' })))
+      return await new Promise(resolve =>
+        signal.addEventListener('abort', () =>
+          resolve({ ok: false, status: 499, reason: 'Aborted' })
+        )
+      )
     }
     const upload = admitted(file.length)
     const uploads = createChunkedUploads({ chunkSize: 10, idleMs: 1000, forward: silent })
@@ -225,9 +298,17 @@ describe('createChunkedUploads', () => {
   it('cancels an upload Immich has stopped reading', async () => {
     vi.useFakeTimers()
     const signals: AbortSignal[] = []
-    const stuck = async (_permit: UploadPermit, _upload: IncomingUpload, signal: AbortSignal): Promise<ForwardResult> => {
+    const stuck = async (
+      _permit: UploadPermit,
+      _upload: IncomingUpload,
+      signal: AbortSignal
+    ): Promise<ForwardResult> => {
       signals.push(signal)
-      return await new Promise(resolve => signal.addEventListener('abort', () => resolve({ ok: false, status: 499, reason: 'Aborted' })))
+      return await new Promise(resolve =>
+        signal.addEventListener('abort', () =>
+          resolve({ ok: false, status: 499, reason: 'Aborted' })
+        )
+      )
     }
     const size = 64 * 1024
     const uploads = createChunkedUploads({ chunkSize: size, idleMs: 1000, forward: stuck })
@@ -241,7 +322,10 @@ describe('createChunkedUploads', () => {
   it('gives an upload as long as one chunk takes at 0.5 Mbit/s, and at least 5 minutes', () => {
     vi.useFakeTimers()
     const MB = 1024 * 1024
-    for (const [chunkSize, idleMs] of [[1 * MB, 5 * 60_000], [50 * MB, 50 * MB / 62.5]]) {
+    for (const [chunkSize, idleMs] of [
+      [1 * MB, 5 * 60_000],
+      [50 * MB, (50 * MB) / 62.5]
+    ]) {
       const { forward, signals } = fakeForward()
       createChunkedUploads({ chunkSize, forward }).start(admitted(chunkSize * 2), 'key')
       vi.advanceTimersByTime(idleMs - 1)
@@ -263,27 +347,49 @@ describe('createChunkedUploads', () => {
 
 describe('createChunkedReceiver', () => {
   /** A response that records the status and body sent. */
-  function response () {
-    const sent: { status?: number, body?: unknown } = {}
+  function response() {
+    const sent: { status?: number; body?: unknown } = {}
     const res = {
-      status (code: number) { sent.status = code; return res },
-      json (body: unknown) { sent.body = body; return res },
-      set () { return res }
+      status(code: number) {
+        sent.status = code
+        return res
+      },
+      json(body: unknown) {
+        sent.body = body
+        return res
+      },
+      set() {
+        return res
+      }
     }
     return { res, sent }
   }
 
   it('refuses to start a chunked upload for a file no larger than one chunk', () => {
     const admit = vi.fn<Admit>(() => admitted(4))
-    const receiver = createChunkedReceiver(admit, createChunkedUploads({ chunkSize: 4, forward: fakeForward().forward }), 4)
+    const receiver = createChunkedReceiver(
+      admit,
+      createChunkedUploads({ chunkSize: 4, forward: fakeForward().forward }),
+      4
+    )
     for (const size of ['1', '4']) {
       const { res, sent } = response()
-      receiver.start({ query: { size }, params: { key: 'key' } } as never, res as never, share(), 'key' as never)
+      receiver.start(
+        { query: { size }, params: { key: 'key' } } as never,
+        res as never,
+        share(),
+        'key' as never
+      )
       expect(sent.status).toBe(400)
     }
     expect(admit).not.toHaveBeenCalled()
     const { res, sent } = response()
-    receiver.start({ query: { size: '5' }, params: { key: 'key' } } as never, res as never, share(), 'key' as never)
+    receiver.start(
+      { query: { size: '5' }, params: { key: 'key' } } as never,
+      res as never,
+      share(),
+      'key' as never
+    )
     expect(admit).toHaveBeenCalledOnce()
     expect(sent.body).toMatchObject({ chunkSize: 4 })
   })
@@ -294,7 +400,12 @@ describe('createChunkedReceiver', () => {
     const receiver = createChunkedReceiver(admit, uploads, 4)
     const start = () => {
       const { res, sent } = response()
-      receiver.start({ query: { size: '10' }, params: { key: 'key' } } as never, res as never, share(), 'key' as never)
+      receiver.start(
+        { query: { size: '10' }, params: { key: 'key' } } as never,
+        res as never,
+        share(),
+        'key' as never
+      )
       return sent
     }
     const ids = Array.from({ length: 20 }, () => (start().body as { id: string }).id)

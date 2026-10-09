@@ -4,7 +4,16 @@ import crypto from 'crypto'
 import { Request, Response } from 'express-serve-static-core'
 import { KeyType, log, respondToInvalidRequest, SharedLink } from '@ipp/core'
 import { ForwardResult, forwardUpload } from './forward'
-import { Admit, Admitted, BODY_IDLE_MS, BODY_MIN_BYTES_PER_INTERVAL, declaredLength, finishUpload, incomingUpload, refuse } from './receive'
+import {
+  Admit,
+  Admitted,
+  BODY_IDLE_MS,
+  BODY_MIN_BYTES_PER_INTERVAL,
+  declaredLength,
+  finishUpload,
+  incomingUpload,
+  refuse
+} from './receive'
 import { createIdleTimeoutStream, IdleTimeoutError } from './idleTimeoutStream'
 
 /*
@@ -60,31 +69,42 @@ interface ChunkedUpload {
 }
 
 export type ChunkOutcome =
-  | { kind: 'accepted', offset: number }
-  | { kind: 'conflict', offset: number }
-  | { kind: 'refused', status: number, reason: string }
-  | { kind: 'finished', admitted: Admitted, result: ForwardResult, repeat: boolean }
+  | { kind: 'accepted'; offset: number }
+  | { kind: 'conflict'; offset: number }
+  | { kind: 'refused'; status: number; reason: string }
+  | { kind: 'finished'; admitted: Admitted; result: ForwardResult; repeat: boolean }
   | { kind: 'gone' }
 
 export interface ChunkedUploads {
   /** Uploads still sending to Immich for the share with this id. */
   openFor: (shareId: string) => number
   start: (admitted: Admitted, shareKey: string) => string
-  receive: (id: string, shareKey: string, offset: number, length: number, chunk: Readable) => Promise<ChunkOutcome>
+  receive: (
+    id: string,
+    shareKey: string,
+    offset: number,
+    length: number,
+    chunk: Readable
+  ) => Promise<ChunkOutcome>
   cancel: (id: string, shareKey: string) => boolean
 }
 
-export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number, forward?: typeof forwardUpload }): ChunkedUploads {
-  const idleMs = opts.idleMs ?? Math.max(CHUNK_MIN_IDLE_MS, opts.chunkSize / CHUNK_MIN_BYTES_PER_SECOND * 1000)
+export function createChunkedUploads(opts: {
+  chunkSize: number
+  idleMs?: number
+  forward?: typeof forwardUpload
+}): ChunkedUploads {
+  const idleMs =
+    opts.idleMs ?? Math.max(CHUNK_MIN_IDLE_MS, (opts.chunkSize / CHUNK_MIN_BYTES_PER_SECOND) * 1000)
   const forward = opts.forward ?? forwardUpload
   const uploads = new Map<string, ChunkedUpload>()
 
-  function remove (id: string, upload: ChunkedUpload) {
+  function remove(id: string, upload: ChunkedUpload) {
     clearTimeout(upload.timer)
     if (uploads.get(id) === upload) uploads.delete(id)
   }
 
-  function abort (id: string, upload: ChunkedUpload) {
+  function abort(id: string, upload: ChunkedUpload) {
     remove(id, upload)
     upload.writer?.destroy()
     upload.controller.abort()
@@ -93,7 +113,7 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
   }
 
   /** Expire an upload that has gone quiet, or a finished one whose answer has had time to be fetched. */
-  function arm (id: string, upload: ChunkedUpload) {
+  function arm(id: string, upload: ChunkedUpload) {
     clearTimeout(upload.timer)
     upload.armedAt = upload.offset
     upload.timer = setTimeout(() => {
@@ -101,12 +121,18 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
         remove(id, upload)
         return
       }
-      log('Dropped upload ' + upload.admitted.filename + ': no chunk completed in ' + Math.round(idleMs / 1000) + ' s')
+      log(
+        'Dropped upload ' +
+          upload.admitted.filename +
+          ': no chunk completed in ' +
+          Math.round(idleMs / 1000) +
+          ' s'
+      )
       abort(id, upload)
     }, idleMs)
   }
 
-  function finished (id: string, upload: ChunkedUpload, result: ForwardResult): ChunkOutcome {
+  function finished(id: string, upload: ChunkedUpload, result: ForwardResult): ChunkOutcome {
     upload.settled = result
     upload.body.destroy()
     arm(id, upload)
@@ -114,7 +140,7 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
   }
 
   return {
-    openFor (shareId) {
+    openFor(shareId) {
       let open = 0
       for (const upload of uploads.values()) {
         if (!upload.settled && (upload.admitted.link.id || upload.shareKey) === shareId) open++
@@ -122,7 +148,7 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
       return open
     },
 
-    start (admitted, shareKey) {
+    start(admitted, shareKey) {
       const id = crypto.randomBytes(16).toString('hex')
       const body = new PassThrough()
       const controller = new AbortController()
@@ -145,7 +171,7 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
       return id
     },
 
-    async receive (id, shareKey, offset, length, chunk) {
+    async receive(id, shareKey, offset, length, chunk) {
       const upload = ID_PATTERN.test(id) ? uploads.get(id) : undefined
       if (!upload || upload.shareKey !== shareKey) return { kind: 'gone' }
       // A repeated last chunk is read first: an answer sent before the body is read often reaches a browser as a network error
@@ -158,7 +184,9 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
       if (upload.offset === upload.admitted.size) {
         if (length <= opts.chunkSize) await discard(chunk)
         const result = await upload.result
-        return uploads.get(id) === upload ? { kind: 'finished', admitted: upload.admitted, result, repeat: true } : { kind: 'gone' }
+        return uploads.get(id) === upload
+          ? { kind: 'finished', admitted: upload.admitted, result, repeat: true }
+          : { kind: 'gone' }
       }
       // A chunk still streaming here is one the visitor has given up on; the newer request takes over
       if (upload.writer) {
@@ -186,13 +214,24 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
           if (!fresh.length) continue
           const ready = upload.body.write(fresh)
           upload.offset += fresh.length
-          if (upload.offset - upload.armedAt >= opts.chunkSize || upload.offset === upload.admitted.size) arm(id, upload)
+          if (
+            upload.offset - upload.armedAt >= opts.chunkSize ||
+            upload.offset === upload.admitted.size
+          )
+            arm(id, upload)
           if (!ready) await drained(upload.body)
           if (upload.answer || upload.body.destroyed) break
         }
       } catch (err) {
         // The chunk was cut off; what was written stays written
-        if (err instanceof IdleTimeoutError) log('Dropped a chunk of ' + upload.admitted.filename + ': too little received in ' + BODY_IDLE_MS / 1000 + ' s')
+        if (err instanceof IdleTimeoutError)
+          log(
+            'Dropped a chunk of ' +
+              upload.admitted.filename +
+              ': too little received in ' +
+              BODY_IDLE_MS / 1000 +
+              ' s'
+          )
       }
       if (upload.writer !== chunk) return { kind: 'conflict', offset: upload.offset }
       upload.writer = undefined
@@ -203,10 +242,12 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
         const result = await upload.result
         return uploads.get(id) === upload ? finished(id, upload, result) : { kind: 'gone' }
       }
-      return upload.offset >= offset + length ? { kind: 'accepted', offset: upload.offset } : { kind: 'conflict', offset: upload.offset }
+      return upload.offset >= offset + length
+        ? { kind: 'accepted', offset: upload.offset }
+        : { kind: 'conflict', offset: upload.offset }
     },
 
-    cancel (id, shareKey) {
+    cancel(id, shareKey) {
       const upload = uploads.get(id)
       if (!upload || upload.shareKey !== shareKey) return false
       if (!upload.settled) abort(id, upload)
@@ -216,7 +257,7 @@ export function createChunkedUploads (opts: { chunkSize: number, idleMs?: number
 }
 
 /** Resolve once `body` can take more, or has been destroyed. */
-function drained (body: PassThrough): Promise<void> {
+function drained(body: PassThrough): Promise<void> {
   return new Promise(resolve => {
     const done = () => {
       body.off('drain', done)
@@ -229,7 +270,7 @@ function drained (body: PassThrough): Promise<void> {
 }
 
 /** Read a chunk to its end and throw it away. */
-async function discard (chunk: Readable): Promise<void> {
+async function discard(chunk: Readable): Promise<void> {
   chunk.resume()
   try {
     await streamEnd(chunk)
@@ -238,7 +279,7 @@ async function discard (chunk: Readable): Promise<void> {
   }
 }
 
-function respond (res: Response, outcome: ChunkOutcome): void {
+function respond(res: Response, outcome: ChunkOutcome): void {
   switch (outcome.kind) {
     case 'accepted':
       res.json({ offset: outcome.offset })
@@ -264,9 +305,9 @@ function respond (res: Response, outcome: ChunkOutcome): void {
 }
 
 /** Build the handlers for `POST <share>/upload/start`, `PUT <share>/upload/<id>` and `DELETE <share>/upload/<id>`. */
-export function createChunkedReceiver (admit: Admit, uploads: ChunkedUploads, chunkSize: number) {
+export function createChunkedReceiver(admit: Admit, uploads: ChunkedUploads, chunkSize: number) {
   return {
-    start (req: Request, res: Response, link: SharedLink, keyType: KeyType): void {
+    start(req: Request, res: Response, link: SharedLink, keyType: KeyType): void {
       const size = declaredLength(typeof req.query.size === 'string' ? req.query.size : undefined)
       // The page chunks only larger files; a smaller one would hold an upload open for almost none of the byte budget
       if (size !== undefined && size <= chunkSize) {
@@ -284,18 +325,24 @@ export function createChunkedReceiver (admit: Admit, uploads: ChunkedUploads, ch
       res.json({ id: uploads.start(admitted, req.params.key), chunkSize })
     },
 
-    async chunk (req: Request, res: Response): Promise<void> {
-      const offset = declaredLength(typeof req.query.offset === 'string' ? req.query.offset : undefined)
+    async chunk(req: Request, res: Response): Promise<void> {
+      const offset = declaredLength(
+        typeof req.query.offset === 'string' ? req.query.offset : undefined
+      )
       const length = declaredLength(req.headers['content-length'])
       if (offset === undefined || length === undefined) {
         refuse(res, 400, 'The chunk has no offset or size')
         return
       }
-      const chunk = pipeline(req, createIdleTimeoutStream(BODY_IDLE_MS, BODY_MIN_BYTES_PER_INTERVAL), () => {})
+      const chunk = pipeline(
+        req,
+        createIdleTimeoutStream(BODY_IDLE_MS, BODY_MIN_BYTES_PER_INTERVAL),
+        () => {}
+      )
       respond(res, await uploads.receive(req.params.id, req.params.key, offset, length, chunk))
     },
 
-    cancel (req: Request, res: Response): void {
+    cancel(req: Request, res: Response): void {
       if (!uploads.cancel(req.params.id, req.params.key)) {
         respondToInvalidRequest(res, 404, 'Unknown upload')
         return

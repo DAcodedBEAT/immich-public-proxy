@@ -29,7 +29,7 @@ export class TtlLruCache<V> {
    * `ttlMs` may be a function, read on each `set`, for a TTL that comes from
    * config: a cache built at import time exists before the config is loaded.
    */
-  constructor (opts: { ttlMs: number | (() => number), max: number }) {
+  constructor(opts: { ttlMs: number | (() => number); max: number }) {
     this.ttlMs = opts.ttlMs
     this.max = opts.max
   }
@@ -39,7 +39,7 @@ export class TtlLruCache<V> {
    * `undefined` if the entry is missing or expired (expired entries are
    * dropped on access).
    */
-  get (key: string): V | undefined {
+  get(key: string): V | undefined {
     const entry = this.entries.get(key)
     if (!entry) return undefined
     if (entry.expiresAt <= Date.now()) {
@@ -58,7 +58,7 @@ export class TtlLruCache<V> {
    * is the entry we just wrote, which shouldn't happen but is guarded
    * just in case).
    */
-  set (key: string, value: V): void {
+  set(key: string, value: V): void {
     const ttlMs = typeof this.ttlMs === 'function' ? this.ttlMs() : this.ttlMs
     this.entries.set(key, { value, expiresAt: Date.now() + ttlMs })
     if (this.entries.size > this.max) {
@@ -67,7 +67,7 @@ export class TtlLruCache<V> {
     }
   }
 
-  delete (key: string): void {
+  delete(key: string): void {
     this.entries.delete(key)
   }
 }
@@ -83,11 +83,11 @@ export class TtlLruCache<V> {
  * cache stays storage-only; the eviction rule lives here, once, instead of
  * being hand-copied at each call site.
  */
-export function cachedPromise<T> (
+export function cachedPromise<T>(
   cache: TtlLruCache<Promise<T>>,
   key: string,
   factory: () => Promise<T>,
-  isValid: (value: T) => boolean = (value) => !!value
+  isValid: (value: T) => boolean = value => !!value
 ): Promise<T> {
   const cached = cache.get(key)
   if (cached) return cached
@@ -95,8 +95,12 @@ export function cachedPromise<T> (
   const promise = factory()
   cache.set(key, promise)
   promise.then(
-    (value) => { if (!isValid(value)) cache.delete(key) },
-    () => { cache.delete(key) }
+    value => {
+      if (!isValid(value)) cache.delete(key)
+    },
+    () => {
+      cache.delete(key)
+    }
   )
   return promise
 }

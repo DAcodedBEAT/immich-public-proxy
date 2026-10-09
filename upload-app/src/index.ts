@@ -46,7 +46,9 @@ loadConfig({ defaultPath: resolve(__dirname, '../config.json') })
 const admit = createUploadAdmission()
 const receiveUpload = createUploadReceiver(admit)
 const chunkBytes = chunkSize()
-const chunked = chunkBytes > 0 && createChunkedReceiver(admit, createChunkedUploads({ chunkSize: chunkBytes }), chunkBytes)
+const chunked =
+  chunkBytes > 0 &&
+  createChunkedReceiver(admit, createChunkedUploads({ chunkSize: chunkBytes }), chunkBytes)
 const inProduction = process.env.NODE_ENV === 'production'
 
 const app = express()
@@ -60,7 +62,8 @@ app.disable('x-powered-by')
   visitor loses a connection worth keeping.
 */
 app.use((req, res, next) => {
-  if (req.headers['content-length'] || req.headers['transfer-encoding']) res.set('Connection', 'close')
+  if (req.headers['content-length'] || req.headers['transfer-encoding'])
+    res.set('Connection', 'close')
   next()
 })
 
@@ -69,7 +72,7 @@ app.use((req, res, next) => {
  * its body before answering: with no whole-request timeout, a slow sender
  * would otherwise hold it open forever.
  */
-function bodyDeadline (ms: number): RequestHandler {
+function bodyDeadline(ms: number): RequestHandler {
   return (req, res, next) => {
     const timer = setTimeout(() => req.destroy(), ms)
     res.once('close', () => clearTimeout(timer))
@@ -88,7 +91,10 @@ app.get(['/healthcheck', '/share/healthcheck'], asyncHandler(healthcheck))
 const router = Router()
 
 for (const dir of ['public', CORE_PUBLIC_DIR]) {
-  router.use('/share/static/' + ASSET_VERSION, express.static(dir, { immutable: inProduction, maxAge: inProduction ? '365d' : 0 }))
+  router.use(
+    '/share/static/' + ASSET_VERSION,
+    express.static(dir, { immutable: inProduction, maxAge: inProduction ? '365d' : 0 })
+  )
   router.use('/share/static', express.static(dir))
 }
 
@@ -108,61 +114,88 @@ router.use(sessionMiddleware({ name: 'upload-session' }))
 router.get(['/healthcheck', '/share/healthcheck'], asyncHandler(healthcheck))
 
 type ShareResolution =
-  | { ok: true, link: SharedLink, keyType: KeyType }
-  | { ok: false, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink; keyType: KeyType }
+  | { ok: false; reason: string; passwordRequired?: boolean }
 
 /** Validate the share in the URL against Immich, with the password from the session cookie. */
-async function resolveShare (req: Request): Promise<ShareResolution> {
+async function resolveShare(req: Request): Promise<ShareResolution> {
   const keyType = getKeyTypeFromShare(req.params.shareType)
-  if (slugLinksDisabled(keyType)) return { ok: false, reason: 'Slug links are disabled in config.json' }
+  if (slugLinksDisabled(keyType))
+    return { ok: false, reason: 'Slug links are disabled in config.json' }
   if (!isKey(req.params.key)) return { ok: false, reason: 'Invalid key for ' + req.path }
   const share = await getShare(req.params.key, keyType, req.password)
   if (!share.valid) return { ok: false, reason: 'Invalid share link' }
-  if (share.passwordRequired || !share.link) return { ok: false, reason: 'Password required', passwordRequired: true }
+  if (share.passwordRequired || !share.link)
+    return { ok: false, reason: 'Password required', passwordRequired: true }
   return { ok: true, link: share.link, keyType }
 }
 
 /** Route handlers for an upload request: run `handler` once the share resolves, else answer with the 404 policy. */
-function forUpload (handler: (req: Request, res: Response, link: SharedLink, keyType: KeyType) => unknown): RequestHandler[] {
-  return [decodeCookie, asyncHandler(async (req, res) => {
-    const resolved = await resolveShare(req)
-    if (!resolved.ok) {
-      respondToInvalidRequest(res, 404, resolved.reason)
-      return
-    }
-    await handler(req, res, resolved.link, resolved.keyType)
-  })]
+function forUpload(
+  handler: (req: Request, res: Response, link: SharedLink, keyType: KeyType) => unknown
+): RequestHandler[] {
+  return [
+    decodeCookie,
+    asyncHandler(async (req, res) => {
+      const resolved = await resolveShare(req)
+      if (!resolved.ok) {
+        respondToInvalidRequest(res, 404, resolved.reason)
+        return
+      }
+      await handler(req, res, resolved.link, resolved.keyType)
+    })
+  ]
 }
 
 /*
   [ROUTE] Upload page, or the password page for a locked share
 */
-router.get('/:shareType(share|s)/:key', decodeCookie, asyncHandler(async (req, res) => {
-  const key = req.params.key
-  const resolved = await resolveShare(req)
-  if (!resolved.ok && resolved.passwordRequired) {
-    if (req.password) invalidPasswordResponse(req, res, key)
-    res.send(renderPage(h(Password, { shareKey: key, notifyInvalidPassword: !!req.password, basePath: req.baseUrl })))
-    return
-  }
-  if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
-    respondToInvalidRequest(res, 404, resolved.ok ? 'Share does not accept uploads' : resolved.reason)
-    return
-  }
-  const gallery = galleryUrl()
-  res.send(renderPage(h(UploadPage, {
-    config: {
-      uploadUrl: `${req.baseUrl}/${req.params.shareType}/${encodeURIComponent(key)}/upload`,
-      maxFileSize: maxFileSize(),
-      chunkSize: chunkBytes,
-      title: title(resolved.link),
-      askName: askName()
-    },
-    basePath: req.baseUrl,
-    galleryLink: gallery && `${gallery}/${req.params.shareType}/${encodeURIComponent(key)}`,
-    notice: uploadNotice()
-  })))
-}))
+router.get(
+  '/:shareType(share|s)/:key',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const key = req.params.key
+    const resolved = await resolveShare(req)
+    if (!resolved.ok && resolved.passwordRequired) {
+      if (req.password) invalidPasswordResponse(req, res, key)
+      res.send(
+        renderPage(
+          h(Password, {
+            shareKey: key,
+            notifyInvalidPassword: !!req.password,
+            basePath: req.baseUrl
+          })
+        )
+      )
+      return
+    }
+    if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
+      respondToInvalidRequest(
+        res,
+        404,
+        resolved.ok ? 'Share does not accept uploads' : resolved.reason
+      )
+      return
+    }
+    const gallery = galleryUrl()
+    res.send(
+      renderPage(
+        h(UploadPage, {
+          config: {
+            uploadUrl: `${req.baseUrl}/${req.params.shareType}/${encodeURIComponent(key)}/upload`,
+            maxFileSize: maxFileSize(),
+            chunkSize: chunkBytes,
+            title: title(resolved.link),
+            askName: askName()
+          },
+          basePath: req.baseUrl,
+          galleryLink: gallery && `${gallery}/${req.params.shareType}/${encodeURIComponent(key)}`,
+          notice: uploadNotice()
+        })
+      )
+    )
+  })
+)
 
 /*
   [ROUTE] Password unlock from the password page
@@ -202,7 +235,7 @@ app.all('*', (req, res) => {
 
 app.use(errorHandler)
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   console.error('There was an uncaught error', err)
   server.close()
   process.exit(1)

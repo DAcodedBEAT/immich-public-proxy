@@ -11,7 +11,7 @@ afterEach(() => {
   loadConfig()
 })
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -29,11 +29,11 @@ const asset: Asset = {
 }
 
 /** A share holding just `item`, which every streamed asset belongs to. */
-function shareOf (item: Asset): SharedLink {
+function shareOf(item: Asset): SharedLink {
   return { key: 'testkey', keyType: KeyType.key, type: 'INDIVIDUAL', assets: [item] }
 }
 
-function makeRequest (method = 'GET', range = ''): IncomingShareRequest {
+function makeRequest(method = 'GET', range = ''): IncomingShareRequest {
   return { req: { method } as Request, key: 'testkey', range }
 }
 
@@ -47,23 +47,30 @@ class FakeRes extends Writable {
   received = 0
   headers: Record<string, string> = {}
 
-  constructor () {
+  constructor() {
     super({ highWaterMark: 16 * 1024 })
     // Node's http stack handles response stream errors internally; a bare
     // Writable would crash the test process on destroy(err) instead.
-    this.on('error', () => { /* swallowed, like http.ServerResponse */ })
+    this.on('error', () => {
+      /* swallowed, like http.ServerResponse */
+    })
   }
 
-  setHeader (name: string, value: string) { this.headers[name.toLowerCase()] = value; return this }
-  status (_code: number) { return this }
+  setHeader(name: string, value: string) {
+    this.headers[name.toLowerCase()] = value
+    return this
+  }
+  status(_code: number) {
+    return this
+  }
 
-  _write (chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
+  _write(chunk: Buffer, _enc: string, cb: (error?: Error | null) => void) {
     this.received += chunk.length
     setImmediate(cb)
   }
 }
 
-function asResponse (res: FakeRes): Response {
+function asResponse(res: FakeRes): Response {
   return res as unknown as Response
 }
 
@@ -79,7 +86,7 @@ type Source = {
  * far upstream has been read. Records cancellation and the request signal.
  * `totalBytes` Infinity streams forever until cancelled.
  */
-function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
+function pullFetch(totalBytes: number, source: Source, headersDelayMs = 0) {
   return vi.fn(async (_url: unknown, init?: RequestInit) => {
     const signal = init?.signal as AbortSignal
     source.signals.push(signal)
@@ -97,17 +104,23 @@ function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
       })
     }
     const stream = new ReadableStream<Uint8Array>({
-      start (controller) {
+      start(controller) {
         signal.addEventListener('abort', () => {
-          try { controller.error(abortError()) } catch { /* already closed */ }
+          try {
+            controller.error(abortError())
+          } catch {
+            /* already closed */
+          }
         })
       },
-      pull (controller) {
+      pull(controller) {
         if (source.pulled >= totalBytes) return controller.close()
         controller.enqueue(new Uint8Array(CHUNK))
         source.pulled += CHUNK
       },
-      cancel () { source.cancelled = true }
+      cancel() {
+        source.cancelled = true
+      }
     })
     return new globalThis.Response(stream, {
       status: 200,
@@ -116,7 +129,7 @@ function pullFetch (totalBytes: number, source: Source, headersDelayMs = 0) {
   })
 }
 
-function newSource (): Source {
+function newSource(): Source {
   return { pulled: 0, cancelled: false, signals: [] }
 }
 
@@ -184,7 +197,9 @@ describe('assetBuffer streaming', () => {
     vi.stubGlobal('fetch', pullFetch(Infinity, source, 200))
     const res = new FakeRes()
     setTimeout(() => res.destroy(new Error('client aborted')), 20)
-    await expect(assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original, shareOf(asset))).resolves.toBeUndefined()
+    await expect(
+      assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original, shareOf(asset))
+    ).resolves.toBeUndefined()
     expect(source.signals[0].aborted).toBe(true)
     expect(source.pulled).toBe(0)
     expect(res.received).toBe(0)
@@ -204,7 +219,13 @@ describe('assetBuffer streaming', () => {
     const source = newSource()
     vi.stubGlobal('fetch', pullFetch(4 * CHUNK, source))
     const res = new FakeRes()
-    await assetBuffer(makeRequest('HEAD'), asResponse(res), asset, ImageSize.original, shareOf(asset))
+    await assetBuffer(
+      makeRequest('HEAD'),
+      asResponse(res),
+      asset,
+      ImageSize.original,
+      shareOf(asset)
+    )
     expect(res.writableEnded).toBe(true)
     expect(res.received).toBe(0)
     expect(source.cancelled).toBe(true)
@@ -213,12 +234,21 @@ describe('assetBuffer streaming', () => {
 
   it('names a WebP preview download .webp', async () => {
     setConfig({ ipp: { maxDownloadQuality: 'preview', downloadedFilename: 0 } })
-    vi.stubGlobal('fetch', vi.fn(async () => new globalThis.Response(
-      new ReadableStream({
-        start (controller) { controller.enqueue(new Uint8Array(1024)); controller.close() }
-      }),
-      { status: 200, headers: { 'content-type': 'image/webp', 'content-length': '1024' } }
-    )))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new globalThis.Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new Uint8Array(1024))
+                controller.close()
+              }
+            }),
+            { status: 200, headers: { 'content-type': 'image/webp', 'content-length': '1024' } }
+          )
+      )
+    )
     const res = new FakeRes()
     await assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.original, shareOf(asset))
     expect(res.headers['content-disposition']).toContain('a1.webp')
@@ -227,20 +257,38 @@ describe('assetBuffer streaming', () => {
 
   describe('original tier on an album asset', () => {
     // Album assets come from the timeline with no originalFileName or mime.
-    const albumAsset: Asset = { id: 'a2', key: 'testkey', keyType: KeyType.key, type: AssetType.image, isTrashed: false }
-
-    function svgFetch (headers: Record<string, string>) {
-      return vi.fn(async () => new globalThis.Response('<svg xmlns="http://www.w3.org/2000/svg"/>', {
-        status: 200,
-        headers: { 'content-type': 'image/svg+xml', ...headers }
-      }))
+    const albumAsset: Asset = {
+      id: 'a2',
+      key: 'testkey',
+      keyType: KeyType.key,
+      type: AssetType.image,
+      isTrashed: false
     }
 
-    it('sends an attachment named from Immich\'s header, with nosniff', async () => {
+    function svgFetch(headers: Record<string, string>) {
+      return vi.fn(
+        async () =>
+          new globalThis.Response('<svg xmlns="http://www.w3.org/2000/svg"/>', {
+            status: 200,
+            headers: { 'content-type': 'image/svg+xml', ...headers }
+          })
+      )
+    }
+
+    it("sends an attachment named from Immich's header, with nosniff", async () => {
       setConfig({ ipp: { downloadedFilename: 0 } })
-      vi.stubGlobal('fetch', svgFetch({ 'content-disposition': 'attachment; filename="drawing.svg"' }))
+      vi.stubGlobal(
+        'fetch',
+        svgFetch({ 'content-disposition': 'attachment; filename="drawing.svg"' })
+      )
       const res = new FakeRes()
-      await assetBuffer(makeRequest(), asResponse(res), albumAsset, ImageSize.original, shareOf(albumAsset))
+      await assetBuffer(
+        makeRequest(),
+        asResponse(res),
+        albumAsset,
+        ImageSize.original,
+        shareOf(albumAsset)
+      )
       expect(res.headers['content-disposition']).toBe("attachment; filename*=UTF-8''drawing.svg")
       expect(res.headers['x-content-type-options']).toBe('nosniff')
     })
@@ -249,7 +297,13 @@ describe('assetBuffer streaming', () => {
       setConfig({ ipp: { downloadedFilename: 0 } })
       vi.stubGlobal('fetch', svgFetch({}))
       const res = new FakeRes()
-      await assetBuffer(makeRequest(), asResponse(res), albumAsset, ImageSize.original, shareOf(albumAsset))
+      await assetBuffer(
+        makeRequest(),
+        asResponse(res),
+        albumAsset,
+        ImageSize.original,
+        shareOf(albumAsset)
+      )
       expect(res.headers['content-disposition']).toBe("attachment; filename*=UTF-8''a2.svg")
     })
   })
@@ -293,21 +347,44 @@ describe('upstreamRange', () => {
 })
 
 describe('assetBuffer video playback ranges', () => {
-  const video: Asset = { ...asset, id: 'v1', type: AssetType.video, originalFileName: 'v1.mp4', originalMimeType: 'video/mp4' }
+  const video: Asset = {
+    ...asset,
+    id: 'v1',
+    type: AssetType.video,
+    originalFileName: 'v1.mp4',
+    originalMimeType: 'video/mp4'
+  }
 
-  async function playback (range: string, status: number) {
+  async function playback(range: string, status: number) {
     const sent: (string | null)[] = []
-    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init?: RequestInit) => {
-      sent.push(new Headers(init?.headers).get('range'))
-      return new globalThis.Response(new Uint8Array(16), {
-        status,
-        headers: { 'content-type': 'video/mp4', 'content-range': 'bytes 0-15/9999999', 'cache-control': 'private' }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init?: RequestInit) => {
+        sent.push(new Headers(init?.headers).get('range'))
+        return new globalThis.Response(new Uint8Array(16), {
+          status,
+          headers: {
+            'content-type': 'video/mp4',
+            'content-range': 'bytes 0-15/9999999',
+            'cache-control': 'private'
+          }
+        })
       })
-    }))
+    )
     const res = new FakeRes()
     const codes: number[] = []
-    res.status = (code: number) => { codes.push(code); return res }
-    await assetBuffer(makeRequest('GET', range), asResponse(res), video, ImageSize.preview, shareOf(video), true)
+    res.status = (code: number) => {
+      codes.push(code)
+      return res
+    }
+    await assetBuffer(
+      makeRequest('GET', range),
+      asResponse(res),
+      video,
+      ImageSize.preview,
+      shareOf(video),
+      true
+    )
     return { sent: sent[0], codes, headers: res.headers }
   }
 
@@ -332,10 +409,13 @@ describe('assetBuffer video playback ranges', () => {
     expect(codes).toEqual([206])
   })
 
-  it.each(['nonsense', 'bytes=0-1,5-9'])('serves the whole file with 200 for the Range %s', async range => {
-    const { sent, codes, headers } = await playback(range, 200)
-    expect(sent).toBeNull()
-    expect(codes).toEqual([])
-    expect(headers['content-range']).toBeUndefined()
-  })
+  it.each(['nonsense', 'bytes=0-1,5-9'])(
+    'serves the whole file with 200 for the Range %s',
+    async range => {
+      const { sent, codes, headers } = await playback(range, 200)
+      expect(sent).toBeNull()
+      expect(codes).toEqual([])
+      expect(headers['content-range']).toBeUndefined()
+    }
+  )
 })

@@ -18,11 +18,11 @@ const BY_PATH = new Map(FIELDS.map(field => [field.path, field]))
 const RENAMED = new Map(data.renamed.map(key => [key.from, key.html]))
 
 /** A JSON copy, so the form never shares an object with the defaults or with a pasted config. */
-function clone<T> (value: T): T {
+function clone<T>(value: T): T {
   return value === undefined ? value : JSON.parse(JSON.stringify(value))
 }
 
-function kindOf (field: GeneratorField): Kind {
+function kindOf(field: GeneratorField): Kind {
   if (field.values) return 'select'
   if (field.type === 'bool') return 'switch'
   if (field.type === 'string') return 'text'
@@ -33,14 +33,16 @@ function kindOf (field: GeneratorField): Kind {
 
 const hasDraft = (field: GeneratorField) => ['number', 'json', 'jsonArea'].includes(kindOf(field))
 
-function toDraft (field: GeneratorField, value: unknown): string {
+function toDraft(field: GeneratorField, value: unknown): string {
   if (kindOf(field) === 'number') return String(value)
   return kindOf(field) === 'jsonArea' ? JSON.stringify(value, null, 2) : JSON.stringify(value)
 }
 
 /** Whether a key takes a value: one of its allowed values, or any value of its type. */
-function accepts (field: GeneratorField, value: unknown): boolean {
-  return field.values ? field.values.some(allowed => sameValue(allowed.value, value)) : matchesType(field.type, value)
+function accepts(field: GeneratorField, value: unknown): boolean {
+  return field.values
+    ? field.values.some(allowed => sameValue(allowed.value, value))
+    : matchesType(field.type, value)
 }
 
 /*
@@ -54,26 +56,26 @@ const errors = reactive<Record<string, string>>({})
 const pasteError = ref('')
 const notices = ref<Notice[]>([])
 
-function setValue (field: GeneratorField, value: unknown) {
+function setValue(field: GeneratorField, value: unknown) {
   values[field.path] = clone(value)
   if (hasDraft(field)) drafts[field.path] = toDraft(field, value)
   delete errors[field.path]
 }
 
-function resetAll () {
+function resetAll() {
   for (const field of FIELDS) setValue(field, field.default)
 }
 resetAll()
 
 /** Reset the form and clear what the paste box reported. */
-function startOver () {
+function startOver() {
   resetAll()
   notices.value = []
   pasteError.value = ''
 }
 
 /** Read a text field. A value that doesn't parse leaves the last good one in place and shows why. */
-function onDraft (field: GeneratorField, text: string) {
+function onDraft(field: GeneratorField, text: string) {
   drafts[field.path] = text
   let value: unknown
   if (kindOf(field) === 'number') {
@@ -90,7 +92,10 @@ function onDraft (field: GeneratorField, text: string) {
       return
     }
     if (!matchesType(field.type, value)) {
-      errors[field.path] = field.type === 'object' ? 'Enter a JSON object, such as {}.' : 'Enter true, false or a string in quotes.'
+      errors[field.path] =
+        field.type === 'object'
+          ? 'Enter a JSON object, such as {}.'
+          : 'Enter true, false or a string in quotes.'
       return
     }
   }
@@ -99,7 +104,7 @@ function onDraft (field: GeneratorField, text: string) {
 }
 
 /** Reset the form, then set every key of a config that the docs know, and report the rest. */
-function loadConfig (config: Record<string, unknown>): Notice[] {
+function loadConfig(config: Record<string, unknown>): Notice[] {
   resetAll()
   const found: Notice[] = []
   const isGroup = (path: string) => FIELDS.some(field => field.path.startsWith(path + '.'))
@@ -107,14 +112,22 @@ function loadConfig (config: Record<string, unknown>): Notice[] {
     const field = BY_PATH.get(path)
     if (field) {
       if (accepts(field, node)) setValue(field, node)
-      else found.push({ path, message: 'has a value this key does not take, so it was left at its default.' })
+      else
+        found.push({
+          path,
+          message: 'has a value this key does not take, so it was left at its default.'
+        })
     } else if (isObject(node) && (isGroup(path) || Object.keys(node).length > 0)) {
       // Into unknown objects too, so a renamed key inside one is still found
       for (const [name, child] of Object.entries(node)) walk(child, path + '.' + name)
     } else if (isGroup(path)) {
       found.push({ path, message: 'must be an object of keys, so it was left out.' })
     } else if (RENAMED.has(path)) {
-      found.push({ path, message: 'was renamed, so it was left out. Current key:', html: RENAMED.get(path) })
+      found.push({
+        path,
+        message: 'was renamed, so it was left out. Current key:',
+        html: RENAMED.get(path)
+      })
     } else {
       found.push({ path, message: 'is not a key IPP reads, so it was left out.' })
     }
@@ -124,13 +137,14 @@ function loadConfig (config: Record<string, unknown>): Notice[] {
 }
 
 /** Read the paste box. Text around the JSON is ignored, so the whole `CONFIG: |` block can be pasted. */
-function loadPasted (text: string) {
+function loadPasted(text: string) {
   let config: unknown
   try {
     config = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
   } catch {}
   if (!isObject(config)) {
-    pasteError.value = 'This is not a JSON object. Paste the contents of config.json, or the JSON in your CONFIG variable.'
+    pasteError.value =
+      'This is not a JSON object. Paste the contents of config.json, or the JSON in your CONFIG variable.'
     return
   }
   pasteError.value = ''
@@ -152,26 +166,49 @@ const output = computed(() => {
 })
 const changedCount = computed(() => FIELDS.filter(isChanged).length)
 const configJson = computed(() => JSON.stringify(output.value, null, 2))
-const configEnv = computed(() => 'CONFIG: |\n' + configJson.value.split('\n').map(line => '  ' + line).join('\n'))
+const configEnv = computed(
+  () =>
+    'CONFIG: |\n' +
+    configJson.value
+      .split('\n')
+      .map(line => '  ' + line)
+      .join('\n')
+)
 const hasErrors = computed(() => Object.keys(errors).length > 0)
 
 /** A section's fields, with each flag table's rows gathered into one block under the key they belong to. */
-type Block = { field: GeneratorField } | { group: string, path: string, link: string, fields: GeneratorField[] }
+type Block =
+  | { field: GeneratorField }
+  | { group: string; path: string; link: string; fields: GeneratorField[] }
 const SECTIONS = data.sections.map(section => {
   const blocks: Block[] = []
   for (const field of section.fields) {
     const last = blocks[blocks.length - 1]
-    if (field.group && last && 'group' in last && last.group === field.group) last.fields.push(field)
-    else if (field.group) blocks.push({ group: field.group, path: field.path.replace(/\.[^.]+$/, ''), link: field.link, fields: [field] })
+    if (field.group && last && 'group' in last && last.group === field.group)
+      last.fields.push(field)
+    else if (field.group)
+      blocks.push({
+        group: field.group,
+        path: field.path.replace(/\.[^.]+$/, ''),
+        link: field.link,
+        fields: [field]
+      })
     else blocks.push({ field })
   }
   return { title: section.title, blocks }
 })
 
 /** The words a field is found by: its section, flag table, label, key and description, in lower case. */
-const SEARCH_TEXT = new Map(data.sections.flatMap(section => section.fields.map(field =>
-  [field.path, [section.title, field.group, field.label, field.path, field.html.replace(/<[^>]*>/g, '')].join(' ').toLowerCase()]
-)))
+const SEARCH_TEXT = new Map(
+  data.sections.flatMap(section =>
+    section.fields.map(field => [
+      field.path,
+      [section.title, field.group, field.label, field.path, field.html.replace(/<[^>]*>/g, '')]
+        .join(' ')
+        .toLowerCase()
+    ])
+  )
+)
 
 // With the form at module scope, so the filter is still applied after a Details link and back
 const filter = ref('')
@@ -180,7 +217,8 @@ const filter = ref('')
 const visibleSections = computed(() => {
   const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean)
   if (words.length === 0) return SECTIONS
-  const matches = (field: GeneratorField) => words.every(word => SEARCH_TEXT.get(field.path)?.includes(word))
+  const matches = (field: GeneratorField) =>
+    words.every(word => SEARCH_TEXT.get(field.path)?.includes(word))
   return SECTIONS.flatMap(section => {
     const blocks = section.blocks.flatMap((block): Block[] => {
       if ('field' in block) return matches(block.field) ? [block] : []
@@ -201,22 +239,29 @@ const loadOpen = ref(false)
 const copied = ref<'' | 'config' | 'link'>('')
 const copyFailed = ref(false)
 
-async function copy (text: string, what: 'config' | 'link') {
+async function copy(text: string, what: 'config' | 'link') {
   try {
     await navigator.clipboard.writeText(text)
     copyFailed.value = false
     copied.value = what
-    setTimeout(() => { if (copied.value === what) copied.value = '' }, 2000)
+    setTimeout(() => {
+      if (copied.value === what) copied.value = ''
+    }, 2000)
   } catch {
     copyFailed.value = true
   }
 }
 
 /** This page's address with the changed keys in the hash, which the browser never sends to the server. */
-const shareLink = computed(() =>
-  location.origin + location.pathname + '#config=' + encodeURIComponent(JSON.stringify(output.value)))
+const shareLink = computed(
+  () =>
+    location.origin +
+    location.pathname +
+    '#config=' +
+    encodeURIComponent(JSON.stringify(output.value))
+)
 
-function selectValue (field: GeneratorField, event: Event) {
+function selectValue(field: GeneratorField, event: Event) {
   const index = Number((event.target as HTMLSelectElement).value)
   setValue(field, field.values?.[index].value)
 }
@@ -224,8 +269,11 @@ function selectValue (field: GeneratorField, event: Event) {
 const selectedIndex = (field: GeneratorField) =>
   field.values?.findIndex(allowed => sameValue(allowed.value, values[field.path])) ?? -1
 
-const onLoadToggle = (event: Event) => { loadOpen.value = (event.target as HTMLDetailsElement).open }
-const showOutput = () => document.getElementById('ipp-cg-output')?.scrollIntoView({ behavior: 'smooth' })
+const onLoadToggle = (event: Event) => {
+  loadOpen.value = (event.target as HTMLDetailsElement).open
+}
+const showOutput = () =>
+  document.getElementById('ipp-cg-output')?.scrollIntoView({ behavior: 'smooth' })
 
 onMounted(() => {
   if (!location.hash.startsWith('#config=')) return
@@ -247,8 +295,17 @@ onMounted(() => {
       <div class="form">
         <details class="load" :open="loadOpen" @toggle="onLoadToggle">
           <summary>Start from your current config</summary>
-          <p>Paste your <code>config.json</code>, or your <code>CONFIG</code> variable. It replaces what is set below.</p>
-          <textarea v-model="pasted" class="input code" rows="6" placeholder='{ "ipp": { "showHomePage": false } }' spellcheck="false" />
+          <p>
+            Paste your <code>config.json</code>, or your <code>CONFIG</code> variable. It replaces
+            what is set below.
+          </p>
+          <textarea
+            v-model="pasted"
+            class="input code"
+            rows="6"
+            placeholder='{ "ipp": { "showHomePage": false } }'
+            spellcheck="false"
+          />
           <button type="button" class="button" @click="loadPasted(pasted)">Load</button>
           <p v-if="pasteError" class="error">{{ pasteError }}</p>
           <template v-if="notices.length">
@@ -258,7 +315,8 @@ onMounted(() => {
             </p>
             <ul class="notices">
               <li v-for="notice in notices" :key="notice.path">
-                <code>{{ notice.path }}</code> {{ notice.message }} <span v-if="notice.html" v-html="notice.html" />
+                <code>{{ notice.path }}</code> {{ notice.message }}
+                <span v-if="notice.html" v-html="notice.html" />
               </li>
             </ul>
           </template>
@@ -273,17 +331,32 @@ onMounted(() => {
             placeholder="Filter options, e.g. video"
             aria-label="Filter options"
             spellcheck="false"
+          />
+          <button
+            v-if="filter"
+            type="button"
+            class="clear"
+            aria-label="Clear filter"
+            @click="filter = ''"
           >
-          <button v-if="filter" type="button" class="clear" aria-label="Clear filter" @click="filter = ''">×</button>
+            ×
+          </button>
         </div>
-        <p v-if="filter && visibleSections.length === 0" class="empty">No options match "{{ filter }}".</p>
+        <p v-if="filter && visibleSections.length === 0" class="empty">
+          No options match "{{ filter }}".
+        </p>
 
         <section v-for="section in visibleSections" :key="section.title">
           <h3>{{ section.title }}</h3>
-          <template v-for="block in section.blocks" :key="'field' in block ? block.field.path : block.path">
+          <template
+            v-for="block in section.blocks"
+            :key="'field' in block ? block.field.path : block.path"
+          >
             <div v-if="'field' in block" class="field" :class="{ changed: isChanged(block.field) }">
               <div class="head">
-                <label :for="fieldId(block.field)" :title="block.field.path">{{ block.field.label }}</label>
+                <label :for="fieldId(block.field)" :title="block.field.path">{{
+                  block.field.label
+                }}</label>
                 <input
                   v-if="kindOf(block.field) === 'switch'"
                   :id="fieldId(block.field)"
@@ -292,8 +365,13 @@ onMounted(() => {
                   class="switch"
                   :checked="values[block.field.path] === true"
                   @change="setValue(block.field, ($event.target as HTMLInputElement).checked)"
+                />
+                <button
+                  v-if="isChanged(block.field)"
+                  type="button"
+                  class="reset"
+                  @click="setValue(block.field, block.field.default)"
                 >
-                <button v-if="isChanged(block.field)" type="button" class="reset" @click="setValue(block.field, block.field.default)">
                   Reset
                 </button>
               </div>
@@ -307,7 +385,9 @@ onMounted(() => {
                 :value="selectedIndex(block.field)"
                 @change="selectValue(block.field, $event)"
               >
-                <option v-for="(allowed, index) in block.field.values" :key="index" :value="index">{{ allowed.label }}</option>
+                <option v-for="(allowed, index) in block.field.values" :key="index" :value="index">
+                  {{ allowed.label }}
+                </option>
               </select>
               <input
                 v-else-if="kindOf(block.field) === 'text'"
@@ -317,7 +397,7 @@ onMounted(() => {
                 spellcheck="false"
                 :value="values[block.field.path]"
                 @input="setValue(block.field, ($event.target as HTMLInputElement).value)"
-              >
+              />
               <input
                 v-else-if="kindOf(block.field) === 'number' || kindOf(block.field) === 'json'"
                 :id="fieldId(block.field)"
@@ -328,7 +408,7 @@ onMounted(() => {
                 spellcheck="false"
                 :value="drafts[block.field.path]"
                 @input="onDraft(block.field, ($event.target as HTMLInputElement).value)"
-              >
+              />
               <textarea
                 v-else-if="kindOf(block.field) === 'jsonArea'"
                 :id="fieldId(block.field)"
@@ -343,14 +423,19 @@ onMounted(() => {
             </div>
 
             <fieldset v-else class="field flags" :class="{ changed: block.fields.some(isChanged) }">
-              <legend :title="block.path">{{ block.group }} <a class="details" :href="block.link">Details</a></legend>
+              <legend :title="block.path">
+                {{ block.group }} <a class="details" :href="block.link">Details</a>
+              </legend>
               <label v-for="field in block.fields" :key="field.path" class="flag">
                 <input
                   type="checkbox"
                   :checked="values[field.path] === true"
                   @change="setValue(field, ($event.target as HTMLInputElement).checked)"
-                >
-                <span :title="field.path"><span class="flag-label">{{ field.label }}</span> <span class="flag-description" v-html="field.html" /></span>
+                />
+                <span :title="field.path"
+                  ><span class="flag-label">{{ field.label }}</span>
+                  <span class="flag-description" v-html="field.html"
+                /></span>
               </label>
             </fieldset>
           </template>
@@ -359,8 +444,12 @@ onMounted(() => {
 
       <aside id="ipp-cg-output" class="output">
         <div class="tabs" role="tablist">
-          <button type="button" role="tab" :aria-selected="tab === 'json'" @click="tab = 'json'">config.json</button>
-          <button type="button" role="tab" :aria-selected="tab === 'env'" @click="tab = 'env'">CONFIG variable</button>
+          <button type="button" role="tab" :aria-selected="tab === 'json'" @click="tab = 'json'">
+            config.json
+          </button>
+          <button type="button" role="tab" :aria-selected="tab === 'env'" @click="tab = 'env'">
+            CONFIG variable
+          </button>
         </div>
         <p v-if="changedCount === 0" class="empty">
           Nothing differs from the defaults, so no config file is needed.
@@ -368,19 +457,25 @@ onMounted(() => {
         <template v-else>
           <pre class="code-block"><code>{{ tab === 'json' ? configJson : configEnv }}</code></pre>
           <p v-if="tab === 'json'" class="hint">
-            Save it as <code>config.json</code> and <a href="/config/#mount-a-file">mount it</a>. If you run the upload
-            service, mount the same file into that container too.
+            Save it as <code>config.json</code> and <a href="/config/#mount-a-file">mount it</a>. If
+            you run the upload service, mount the same file into that container too.
           </p>
           <p v-else class="hint">
-            Add it under <code>environment:</code> in <code>docker-compose.yml</code>, indented like the other
-            variables. If you run the upload service, give that container the same <code>CONFIG</code> too. See
+            Add it under <code>environment:</code> in <code>docker-compose.yml</code>, indented like
+            the other variables. If you run the upload service, give that container the same
+            <code>CONFIG</code> too. See
             <a href="/config/#inline-via-env-var">Inline via env var</a>.
           </p>
           <p v-if="hasErrors" class="error">
-            A field has a value that can't be read. Until it is fixed, the output keeps that key's last good value.
+            A field has a value that can't be read. Until it is fixed, the output keeps that key's
+            last good value.
           </p>
           <div class="actions">
-            <button type="button" class="button" @click="copy(tab === 'json' ? configJson : configEnv, 'config')">
+            <button
+              type="button"
+              class="button"
+              @click="copy(tab === 'json' ? configJson : configEnv, 'config')"
+            >
               {{ copied === 'config' ? 'Copied' : 'Copy' }}
             </button>
             <button type="button" class="button secondary" @click="copy(shareLink, 'link')">
@@ -388,8 +483,12 @@ onMounted(() => {
             </button>
             <button type="button" class="button secondary" @click="startOver">Reset all</button>
           </div>
-          <p v-if="copyFailed" class="error">Copying didn't work in this browser. Select the text and copy it instead.</p>
-          <p class="hint">Anyone you send the link to sees every value in it, including any token.</p>
+          <p v-if="copyFailed" class="error">
+            Copying didn't work in this browser. Select the text and copy it instead.
+          </p>
+          <p class="hint">
+            Anyone you send the link to sees every value in it, including any token.
+          </p>
         </template>
       </aside>
     </div>
@@ -566,7 +665,9 @@ textarea.input {
   border-radius: 11px;
   background: var(--vp-input-switch-bg-color);
   cursor: pointer;
-  transition: background-color 0.25s, border-color 0.25s;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s;
 }
 
 .switch::before {

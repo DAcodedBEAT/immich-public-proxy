@@ -72,7 +72,7 @@ export interface TagSummary {
 export class ImmichError extends Error {}
 
 /** One JSON call to the Immich API, authenticated with the owner's key. */
-async function immich<T> (apiKey: string, method: string, path: string, body?: unknown): Promise<T> {
+async function immich<T>(apiKey: string, method: string, path: string, body?: unknown): Promise<T> {
   let res: Response
   try {
     res = await fetch(apiUrl() + path, {
@@ -85,10 +85,12 @@ async function immich<T> (apiKey: string, method: string, path: string, body?: u
       body: body === undefined ? undefined : JSON.stringify(body)
     })
   } catch (e) {
-    throw new ImmichError('Could not reach Immich at ' + apiUrl() + ': ' + (e instanceof Error ? e.message : String(e)))
+    throw new ImmichError(
+      'Could not reach Immich at ' + apiUrl() + ': ' + (e instanceof Error ? e.message : String(e))
+    )
   }
   if (!res.ok) {
-    const reply = await res.json().catch(() => null) as { message?: unknown } | null
+    const reply = (await res.json().catch(() => null)) as { message?: unknown } | null
     const message = Array.isArray(reply?.message) ? reply?.message.join(', ') : reply?.message
     let text = method + ' ' + path + ' failed with status ' + res.status
     if (typeof message === 'string' && message) text += ': ' + message
@@ -96,7 +98,7 @@ async function immich<T> (apiKey: string, method: string, path: string, body?: u
     if (res.status === 403) text += '. The API key needs the permissions ' + PERMISSIONS + '.'
     throw new ImmichError(text)
   }
-  return await res.json() as T
+  return (await res.json()) as T
 }
 
 /**
@@ -105,16 +107,21 @@ async function immich<T> (apiKey: string, method: string, path: string, body?: u
  * partners' photos, so each result is checked here. Trashed assets and the
  * hidden video half of a motion photo are left out.
  */
-async function findUploads (apiKey: string, prefix: string): Promise<Asset[]> {
+async function findUploads(apiKey: string, prefix: string): Promise<Asset[]> {
   const me = await immich<{ id: string }>(apiKey, 'GET', '/users/me')
   const found: Asset[] = []
   let page: string | null = '1'
   while (page) {
-    const reply: { assets: { items: Asset[], nextPage: string | null } } = await immich(apiKey, 'POST', '/search/metadata', {
-      originalFileName: prefix,
-      page: Number(page),
-      size: SEARCH_PAGE_SIZE
-    })
+    const reply: { assets: { items: Asset[]; nextPage: string | null } } = await immich(
+      apiKey,
+      'POST',
+      '/search/metadata',
+      {
+        originalFileName: prefix,
+        page: Number(page),
+        size: SEARCH_PAGE_SIZE
+      }
+    )
     for (const asset of reply.assets.items) {
       if (asset.ownerId !== me.id || asset.isTrashed || asset.visibility === 'hidden') continue
       if (asset.originalFileName.startsWith(prefix)) found.push(asset)
@@ -125,7 +132,7 @@ async function findUploads (apiKey: string, prefix: string): Promise<Asset[]> {
 }
 
 /** `count` and the noun, singular or plural. */
-function files (count: number): string {
+function files(count: number): string {
   return count + (count === 1 ? ' file' : ' files')
 }
 
@@ -133,7 +140,7 @@ function files (count: number): string {
  * Find the visitor uploads, report them, and with `apply` add a
  * `<parent>/<name>` tag to each named one.
  */
-export async function tagUploads (options: TagOptions): Promise<TagSummary> {
+export async function tagUploads(options: TagOptions): Promise<TagSummary> {
   const { apiKey, apply, parent, prefix, separator, print } = options
   const summary: TagSummary = { named: new Map(), anonymous: 0, unreadable: 0, tagged: 0 }
 
@@ -156,7 +163,7 @@ export async function tagUploads (options: TagOptions): Promise<TagSummary> {
   const names = [...summary.named.keys()].sort()
   const tagIds = new Map<string, string>()
   if (apply && names.length) {
-    const tags = await immich<Array<{ id: string, value: string }>>(apiKey, 'PUT', '/tags', {
+    const tags = await immich<Array<{ id: string; value: string }>>(apiKey, 'PUT', '/tags', {
       tags: names.map(name => parent + '/' + name)
     })
     for (const tag of tags) tagIds.set(tag.value, tag.id)
@@ -168,7 +175,8 @@ export async function tagUploads (options: TagOptions): Promise<TagSummary> {
     const tag = parent + '/' + name
     if (!apply) {
       print(tag + ': ' + files(sent.length))
-      for (const fileName of sent.map(asset => asset.originalFileName).sort()) print('  ' + fileName)
+      for (const fileName of sent.map(asset => asset.originalFileName).sort())
+        print('  ' + fileName)
       continue
     }
     const ids = sent.map(asset => asset.id)
@@ -193,14 +201,24 @@ export async function tagUploads (options: TagOptions): Promise<TagSummary> {
   if (!apply) {
     print('Dry run: nothing was changed. Run again with --apply to add these tags.')
   } else {
-    print('Done. Tagged ' + files(summary.tagged) + '. Files that already had their tag were left as they were.')
+    print(
+      'Done. Tagged ' +
+        files(summary.tagged) +
+        '. Files that already had their tag were left as they were.'
+    )
   }
   return summary
 }
 
 /** Read the flags, the environment and the config, run, and return the exit code. */
-export async function main (argv: string[]): Promise<number> {
-  let values: { apply?: boolean, parent?: string, prefix?: string, separator?: string, help?: boolean }
+export async function main(argv: string[]): Promise<number> {
+  let values: {
+    apply?: boolean
+    parent?: string
+    prefix?: string
+    separator?: string
+    help?: boolean
+  }
   try {
     values = parseArgs({
       args: argv,
@@ -232,16 +250,32 @@ export async function main (argv: string[]): Promise<number> {
   if (!process.env.IMMICH_URL) return usage('IMMICH_URL is not set.')
   const prefix = storedPrefix(values.prefix ?? filenamePrefix())
   if (!prefix) {
-    return usage('The filename prefix is empty, so visitor uploads cannot be told apart from your own photos. ' +
-      'Pass --prefix with the prefix the files were stored with.')
+    return usage(
+      'The filename prefix is empty, so visitor uploads cannot be told apart from your own photos. ' +
+        'Pass --prefix with the prefix the files were stored with.'
+    )
   }
   const separator = values.separator ?? fieldSeparator()
-  if (!isUsableSeparator(separator, prefix)) return usage('"' + separator + '" cannot be a field separator with the prefix "' + prefix + '".')
-  const parent = (values.parent ?? DEFAULT_PARENT).split('/').map(part => part.trim()).filter(Boolean).join('/')
+  if (!isUsableSeparator(separator, prefix))
+    return usage(
+      '"' + separator + '" cannot be a field separator with the prefix "' + prefix + '".'
+    )
+  const parent = (values.parent ?? DEFAULT_PARENT)
+    .split('/')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .join('/')
   if (!parent) return usage('The parent tag is empty.')
 
   try {
-    await tagUploads({ apiKey, apply: !!values.apply, parent, prefix, separator, print: line => console.log(line) })
+    await tagUploads({
+      apiKey,
+      apply: !!values.apply,
+      parent,
+      prefix,
+      separator,
+      print: line => console.log(line)
+    })
     return 0
   } catch (e) {
     if (!(e instanceof ImmichError)) throw e
@@ -251,5 +285,7 @@ export async function main (argv: string[]): Promise<number> {
 }
 
 if (require.main === module) {
-  main(process.argv.slice(2)).then(code => { process.exitCode = code })
+  main(process.argv.slice(2)).then(code => {
+    process.exitCode = code
+  })
 }

@@ -22,6 +22,6 @@ const themeScript = `
   document.documentElement.dataset.theme = v;
 `
 
-export function ThemeScript () {
-  return <script dangerouslySetInnerHTML={{ __html: themeScript }}/>
+export function ThemeScript() {
+  return <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 }

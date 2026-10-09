@@ -3,7 +3,7 @@
  * can be embedded in HTML without injecting markup. Ampersand is escaped
  * first so the other replacements aren't double-escaped.
  */
-export function escapeHtml (str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -18,7 +18,7 @@ export function escapeHtml (str: string): string {
  * `</script>` would terminate the script element early and inject markup into
  * the page.
  */
-export function jsonForInlineScript (value: unknown): string {
+export function jsonForInlineScript(value: unknown): string {
   return JSON.stringify(value)
     .replace(/</g, '\\u003c')
     .replace(/\u2028/g, '\\u2028')
@@ -30,6 +30,6 @@ export function jsonForInlineScript (value: unknown): string {
  * type. Used at boundaries where the input shape isn't statically known
  * (cookie session payloads, etc.).
  */
-export function toString (value: unknown): string {
+export function toString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }

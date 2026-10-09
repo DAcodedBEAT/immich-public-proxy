@@ -1,8 +1,6 @@
 import { TtlLruCache } from '@ipp/core'
 
-export type Admission =
-  | { ok: true, release: () => void }
-  | { ok: false, retryAfterSeconds: number }
+export type Admission = { ok: true; release: () => void } | { ok: false; retryAfterSeconds: number }
 
 interface Window {
   used: number
@@ -19,7 +17,11 @@ interface Window {
  * cache TTL, so admitting inside a window never extends it. A `limit` of 0
  * or less means no limit.
  */
-export function createWindowBudget (opts: { limit: number, windowMs: number, maxKeys?: number }): (key: string, amount?: number) => Admission {
+export function createWindowBudget(opts: {
+  limit: number
+  windowMs: number
+  maxKeys?: number
+}): (key: string, amount?: number) => Admission {
   const windows = new TtlLruCache<Window>({
     // Twice the window, so the cache never drops an entry while its window is open
     ttlMs: opts.windowMs * 2,
@@ -27,7 +29,7 @@ export function createWindowBudget (opts: { limit: number, windowMs: number, max
   })
   const unlimited: Admission = { ok: true, release: () => {} }
 
-  return function admit (key: string, amount = 1): Admission {
+  return function admit(key: string, amount = 1): Admission {
     if (opts.limit <= 0) return unlimited
     const now = Date.now()
     let window = windows.get(key)

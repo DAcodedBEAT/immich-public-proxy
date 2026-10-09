@@ -29,7 +29,10 @@ describe('sidebar date formatting', () => {
   })
 
   it('retains the original value when the timestamp is invalid', () => {
-    expect(formatDate('not-a-date', 'Asia/Singapore', 'en-US')).toEqual({ date: 'not-a-date', time: '' })
+    expect(formatDate('not-a-date', 'Asia/Singapore', 'en-US')).toEqual({
+      date: 'not-a-date',
+      time: ''
+    })
   })
 })
 

@@ -2,10 +2,10 @@
  * Returns a function that runs at most `limit` async tasks concurrently.
  * Tasks queue when the limit is reached and resume in FIFO order.
  */
-export function createLimiter (limit: number) {
+export function createLimiter(limit: number) {
   let active = 0
   const queue: Array<() => void> = []
-  return async function run<T> (fn: () => Promise<T>): Promise<T> {
+  return async function run<T>(fn: () => Promise<T>): Promise<T> {
     if (active >= limit) {
       await new Promise<void>(resolve => queue.push(resolve))
     }
