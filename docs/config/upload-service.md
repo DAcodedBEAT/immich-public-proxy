@@ -29,7 +29,8 @@ Accept files up to 2 GB, and send a notification to a Gotify server for each sto
 
 ## Environment variables
 
-`IMMICH_URL`, `PUBLIC_BASE_URL`, `IPP_PORT`, `IPP_CONFIG` and `CONFIG` mean the same as for IPP; see
+`IMMICH_URL`, `PUBLIC_BASE_URL`, `IPP_PORT`, `IPP_CONFIG`, `CONFIG`, `IPP_TRUST_PROXY`, `IPP_BANLIST_PATH` and
+`IPP_SESSION_SECRET` mean the same as for IPP; see
 [Environment variables](/config/environment-variables). `IMMICH_URL` is required, and the `environment` block from the
 IPP container can be copied across as is.
 
@@ -66,7 +67,8 @@ failure with a retry button instead. `0` turns the limit off. A request the serv
 size or type, does not count.
 
 The address is the one that connects to the service. Behind a reverse proxy every visitor has the proxy's address, so
-the limit covers each share as a whole.
+the limit covers each share as a whole, unless
+[`IPP_TRUST_PROXY`](/config/environment-variables#ipp-trust-proxy) is set.
 
 ### `byteBudget`
 

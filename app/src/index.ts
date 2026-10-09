@@ -17,21 +17,26 @@ import {
   Asset,
   AssetType,
   asyncHandler,
+  banlistMiddleware,
   CORE_PUBLIC_DIR,
   decodeCookie,
   enforceMinimumImmichVersion,
   errorHandler,
+  formatStartupSummary,
   getConfigOption,
   getKeyTypeFromShare,
   healthcheck,
   KeyType,
   loadConfig,
   localTimestamp,
+  log,
   renderPage,
   respondToInvalidRequest,
   sessionMiddleware,
   setInvalidRequestHandler,
   slugLinksDisabled,
+  trustProxyHops,
+  trustProxyWarning,
   unlockHandler
 } from '@ipp/core'
 import { fetchAssetDetail, handleShareRequest } from './immich'
@@ -74,6 +79,15 @@ if (removedSwitches.length) {
 setInvalidRequestHandler(ippInvalidRequestHandler)
 
 const app = express()
+
+/*
+  Trust the client IP forwarded by exactly IPP_TRUST_PROXY proxy hops, so
+  req.ip is the visitor rather than the proxy, then reject banned IPs before
+  anything else runs. Both are no-ops unless their env var is set.
+*/
+const proxyHops = trustProxyHops()
+if (proxyHops > 0) app.set('trust proxy', proxyHops)
+app.use(banlistMiddleware)
 app.use(sessionMiddleware({ name: 'session' }))
 // For parsing the password unlock form and POSTed JSON payloads
 app.use(express.json())
@@ -222,10 +236,12 @@ app.get(
     if (!resolved.ok) {
       // Password-protected: redirect to the share page so the visitor gets the
       // unlock prompt, rather than returning an error.
+      // isKey already limits the key to [\w-]+; encoding is a second guard
+      // in case that validation is ever loosened.
       if (resolved.passwordRequired) {
         // Not cached, or the visitor would keep being sent here after unlocking
         addNoStoreHeaders(res)
-        res.redirect('/share/' + req.params.key)
+        res.redirect('/share/' + encodeURIComponent(req.params.key))
         return
       }
       respondToInvalidRequest(res, resolved.status, resolved.reason)
@@ -332,5 +348,16 @@ process.on('SIGTERM', () => {
 const port = Number(process.env.IPP_PORT) || 3000
 const server = app.listen(port, () => {
   console.log(localTimestamp() + ' Server started on port ' + port)
+  console.log(
+    localTimestamp() +
+      ' ' +
+      formatStartupSummary({
+        trustProxyHops: proxyHops,
+        banlistPath: process.env.IPP_BANLIST_PATH,
+        publicBaseUrl: process.env.PUBLIC_BASE_URL
+      })
+  )
+  const proxyWarning = trustProxyWarning(trustProxyHops())
+  if (proxyWarning) log.warn(proxyWarning)
   enforceMinimumImmichVersion().catch(e => console.error('Immich version check failed:', e))
 })

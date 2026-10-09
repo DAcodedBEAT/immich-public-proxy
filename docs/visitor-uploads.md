@@ -354,4 +354,5 @@ Three reasons, in order of importance:
 
 Behind a reverse proxy every visitor reaches the upload service from the proxy's address, so
 [`upload.rateLimit`](/config/upload-service#ratelimit) applies to all visitors of a share together. To limit each
-visitor separately, set a rate limit in your reverse proxy.
+visitor separately, set [`IPP_TRUST_PROXY`](/config/environment-variables#ipp-trust-proxy) on the upload service to
+the number of proxies in front of it, or set a rate limit in your reverse proxy.
