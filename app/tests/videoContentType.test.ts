@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { Asset, AssetType, KeyType } from '@ipp/core'
-import { getVideoContentType } from '../src/immich'
+import { getVideoContentType } from '../src/immich/assets'
 
 const video: Asset = {
   id: 'v1',

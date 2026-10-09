@@ -192,7 +192,7 @@ export function attachmentDisposition(filename: string): string {
 }
 
 /** Content-type without its parameters, or undefined if absent. */
-export function responseMime(response: globalThis.Response): string | undefined {
+function responseMime(response: globalThis.Response): string | undefined {
   return (response.headers.get('content-type') || '').split(';')[0].trim() || undefined
 }
 

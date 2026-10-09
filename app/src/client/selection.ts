@@ -20,7 +20,7 @@ export function enterSelectMode() {
  * Leave selection mode and clear the selection. Removes the visual marker
  * from every tile currently in the DOM. No-op if not in select mode.
  */
-export function exitSelectMode() {
+function exitSelectMode() {
   if (!state.selectMode) return
   state.selectMode = false
   // Clear DOM markers on the tiles currently in the DOM

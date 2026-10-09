@@ -45,7 +45,7 @@ function createHeader(header: HeaderEntry): HTMLElement {
  * headers that should now be on screen, remove ones that have scrolled out.
  * Idempotent; safe to call multiple times per frame (scroll handler does).
  */
-export function virtualize() {
+function virtualize() {
   if (!state.container || !state.layout.length) return
   const { top, bottom } = getVisibleRange()
 
@@ -160,7 +160,7 @@ export function computeLayoutAndRender() {
  *
  * Run after scroll has settled, not on every scroll tick.
  */
-export function loadVisibleTiles() {
+function loadVisibleTiles() {
   if (!state.container) return
   const vpHeight = window.innerHeight
   const containerTop = state.container.getBoundingClientRect().top

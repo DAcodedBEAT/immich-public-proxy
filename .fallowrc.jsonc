@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/fallow/schema.json",
+  // public/ holds served static assets: vendored third-party libraries
+  // (PhotoSwipe, thumbhash), fonts, CSS and compiled client JS. None of it is
+  // hand-written source to analyze. docs/ is the VitePress site, a separate
+  // npm project (own manifest and lockfile, outside the root `workspaces`).
+  "ignorePatterns": ["*/public/**", "docs/**"],
+  // Browser entry points, loaded by <script type="module" src="..."> in the
+  // rendered gallery and upload pages rather than imported by another module.
+  "entry": ["app/src/client/init.ts", "upload-app/src/client/upload.ts"],
+  // Client modules import the vendored libraries by their runtime URL, which
+  // the server maps to app/public (see the static route in app/src/app.ts).
+  // The browser resolves them, so there is no file path for fallow to find.
+  "ignoreUnresolvedImports": ["/share/static/**"],
+  // Imported by the compiled output (`importHelpers` in each tsconfig), never
+  // by the TypeScript source fallow reads.
+  "ignoreDependencies": ["tslib"]
+}

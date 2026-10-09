@@ -7,7 +7,7 @@ import {
   title,
   toString
 } from '@ipp/core'
-import { getVideoContentType, photoUrl, videoUrl } from '../immich'
+import { getVideoContentType, photoUrl, videoUrl } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import { ImageSize } from '../types'
 import { canDownload, expiryDate, uploadHealthcheck, uploadLink } from '../share'

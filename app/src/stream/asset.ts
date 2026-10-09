@@ -6,7 +6,12 @@ import {
   respondToInvalidRequest,
   SharedLink
 } from '@ipp/core'
-import { assetFetchUrl, authHeadersForAsset, fetchAssetDetail, validateImageSize } from '../immich'
+import {
+  assetFetchUrl,
+  authHeadersForAsset,
+  fetchAssetDetail,
+  validateImageSize
+} from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import { ImageSize, IncomingShareRequest } from '../types'
 import {
