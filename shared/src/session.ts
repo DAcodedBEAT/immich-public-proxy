@@ -48,7 +48,11 @@ export function sessionMiddleware({ name, path = '/' }: SessionOptions) {
 /**
  * Middleware to decode the encrypted data stored in the session cookie
  */
-export function decodeCookie(req: Request, _res: Response, next: NextFunction) {
+export function decodeCookie<P extends { key: string }>(
+  req: Request<P>,
+  _res: Response,
+  next: NextFunction
+) {
   const shareKey = req.params.key
   const session = req.session?.[shareKey]
   if (shareKey && session?.iv && session?.cr) {

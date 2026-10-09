@@ -24,7 +24,11 @@ version. Breaking changes and renamed config keys land in major versions and are
 - **`allowDownload` takes only `0`, `1` or `2`.** Any other value, such as `true`, now turns downloads off. See
   [`allowDownload`](/config/ipp-options#allowdownload).
 - **A custom `invalidRequestHandler.js` must be copied again from the 4.0 image.** A copy taken from 3.x fails to
-  load. See [Custom function](/config/error-responses#custom-function).
+  load. See [Custom function](/config/error-responses#custom-function). IPP 4 runs on Express 5, so if you port your
+  own logic into it, use `res.redirect(url)` or `res.redirect(status, url)` (not `res.redirect(url, status)`) and
+  `res.sendStatus(404)` (not `res.send(404)`).
+- **Share URLs are unchanged.** The share-type path segment (`/share/...`, `/s/...`) is still matched
+  case-insensitively.
 - **Downloads are named by share and position by default, not by the original filename.** Set
   [`downloadedFilename`](/config/ipp-options#downloadedfilename) to `0` to keep the original filenames.
 

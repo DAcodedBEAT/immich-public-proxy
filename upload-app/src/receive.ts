@@ -82,7 +82,7 @@ export interface Admitted {
 }
 
 export type Admit = (
-  req: Request,
+  req: Request<{ key: string }>,
   res: Response,
   link: SharedLink,
   keyType: KeyType,
@@ -218,7 +218,7 @@ export function finishUpload(res: Response, admitted: Admitted, result: ForwardR
 /** Build the handler for `POST <share>/upload`: one file as one request body. */
 export function createUploadReceiver(admit: Admit) {
   return async function receiveUpload(
-    req: Request,
+    req: Request<{ key: string }>,
     res: Response,
     link: SharedLink,
     keyType: KeyType

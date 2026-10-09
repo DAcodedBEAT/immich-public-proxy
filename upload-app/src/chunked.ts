@@ -307,7 +307,7 @@ function respond(res: Response, outcome: ChunkOutcome): void {
 /** Build the handlers for `POST <share>/upload/start`, `PUT <share>/upload/<id>` and `DELETE <share>/upload/<id>`. */
 export function createChunkedReceiver(admit: Admit, uploads: ChunkedUploads, chunkSize: number) {
   return {
-    start(req: Request, res: Response, link: SharedLink, keyType: KeyType): void {
+    start(req: Request<{ key: string }>, res: Response, link: SharedLink, keyType: KeyType): void {
       const size = declaredLength(typeof req.query.size === 'string' ? req.query.size : undefined)
       // The page chunks only larger files; a smaller one would hold an upload open for almost none of the byte budget
       if (size !== undefined && size <= chunkSize) {
@@ -325,7 +325,10 @@ export function createChunkedReceiver(admit: Admit, uploads: ChunkedUploads, chu
       res.json({ id: uploads.start(admitted, req.params.key), chunkSize })
     },
 
-    async chunk(req: Request, res: Response): Promise<void> {
+    async chunk(
+      req: Request<{ shareType: string; id: string; key: string }>,
+      res: Response
+    ): Promise<void> {
       const offset = declaredLength(
         typeof req.query.offset === 'string' ? req.query.offset : undefined
       )
@@ -342,7 +345,7 @@ export function createChunkedReceiver(admit: Admit, uploads: ChunkedUploads, chu
       respond(res, await uploads.receive(req.params.id, req.params.key, offset, length, chunk))
     },
 
-    cancel(req: Request, res: Response): void {
+    cancel(req: Request<{ shareType: string; id: string; key: string }>, res: Response): void {
       if (!uploads.cancel(req.params.id, req.params.key)) {
         respondToInvalidRequest(res, 404, 'Unknown upload')
         return
