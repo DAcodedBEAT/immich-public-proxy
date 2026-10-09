@@ -9,6 +9,7 @@
     "allowSlugLinks": true,
     "uploadUrl": "/upload",
     "shareCacheTime": 120,
+    "shareResolutionConcurrency": 30,
     "showMetadata": {
       "description": {
         "caption": false,

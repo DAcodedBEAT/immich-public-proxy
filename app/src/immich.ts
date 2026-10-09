@@ -13,6 +13,8 @@ import {
   fetchSharedLink,
   getConfigOption,
   getNumericConfigOption,
+  limitShareResolution,
+  SHARE_RESOLUTION_LIMITS,
   invalidPasswordResponse,
   isKey,
   log,
@@ -180,7 +182,8 @@ export function getShareByKey(
   return cachedPromise(
     shareCache,
     cacheKey,
-    () => fetchShareByKey(key, password, keyType),
+    // Only a cache miss reaches the limiter, so warm requests are never throttled
+    () => limitShareResolution(() => fetchShareByKey(key, password, keyType)),
     result => !!result?.valid
   )
 }
@@ -347,7 +350,8 @@ export function utcBucketKey(timeBucket: string): string {
  * (so the caller can treat it as an invalid, uncached result rather than a
  * partial/empty album). Returns an empty array only for a genuinely empty
  * album. Never throws - a rejection here would surface as an unhandled
- * rejection and take the process down.
+ * rejection and take the process down. Running out of
+ * `SHARE_RESOLUTION_LIMITS.albumEnumerationMs` is a failure too.
  */
 async function fetchAlbumAssets(
   albumId: string,
@@ -355,13 +359,15 @@ async function fetchAlbumAssets(
   key: string,
   headers: Record<string, string>
 ): Promise<Asset[] | null> {
+  // One budget for every call, so a slow Immich can't hold a lookup slot for long
+  const signal = AbortSignal.timeout(SHARE_RESOLUTION_LIMITS.albumEnumerationMs)
   try {
     const bucketsRes = await fetch(
       buildUrl(apiUrl() + '/timeline/buckets', {
         albumId,
         [keyType]: key
       }),
-      { headers }
+      { headers, signal }
     )
     if (!bucketsRes.ok) {
       log(
@@ -382,7 +388,7 @@ async function fetchAlbumAssets(
             timeBucket: utcBucketKey(bucket.timeBucket),
             [keyType]: key
           }),
-          { headers }
+          { headers, signal }
         )
         if (!res.ok) {
           log(
@@ -396,7 +402,23 @@ async function fetchAlbumAssets(
           )
           return null
         }
-        return timelineBucketToAssets((await res.json()) as TimelineBucketAssets)
+        const bucketAssets = timelineBucketToAssets((await res.json()) as TimelineBucketAssets)
+        // Immich said this bucket had assets but returned none - a symptom of
+        // a bucket key Immich's database reads in another timezone (#260).
+        // Logged so it's diagnosable.
+        if (bucket.count > 0 && bucketAssets.length === 0) {
+          log(
+            'Timeline bucket ' +
+              bucket.timeBucket +
+              ' for album ' +
+              albumId +
+              ' reported count ' +
+              bucket.count +
+              ' but returned 0 assets - possible Immich server timezone mismatch, see ' +
+              'https://github.com/alangrainger/immich-public-proxy/issues/260'
+          )
+        }
+        return bucketAssets
       })
     )
     // If any bucket failed, treat the whole enumeration as failed.

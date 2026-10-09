@@ -35,6 +35,7 @@ import {
   sessionMiddleware,
   setInvalidRequestHandler,
   slugLinksDisabled,
+  startImmichHealthMonitor,
   trustProxyHops,
   trustProxyWarning,
   unlockHandler
@@ -360,4 +361,6 @@ const server = app.listen(port, () => {
   const proxyWarning = trustProxyWarning(trustProxyHops())
   if (proxyWarning) log.warn(proxyWarning)
   enforceMinimumImmichVersion().catch(e => console.error('Immich version check failed:', e))
+  // The check above runs once; this keeps watching, and only ever logs
+  startImmichHealthMonitor()
 })

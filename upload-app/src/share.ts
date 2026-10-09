@@ -1,4 +1,11 @@
-import { cachedPromise, fetchSharedLink, KeyType, SharedLinkResult, TtlLruCache } from '@ipp/core'
+import {
+  cachedPromise,
+  fetchSharedLink,
+  limitShareResolution,
+  KeyType,
+  SharedLinkResult,
+  TtlLruCache
+} from '@ipp/core'
 
 /*
   Share lookups, cached for 60 s per (key type, key, password). The cache
@@ -16,7 +23,8 @@ export function getShare(
   return cachedPromise(
     shareCache,
     `${keyType}:${key}:${password || ''}`,
-    () => fetchSharedLink(key, keyType, password),
+    // Only a cache miss reaches the limiter, so warm requests are never throttled
+    () => limitShareResolution(() => fetchSharedLink(key, keyType, password)),
     result => result.valid
   )
 }

@@ -156,6 +156,16 @@ A shorter time costs more calls to Immich. Each refresh of an album takes one ca
 
 Other visitors also wait for [`gallery.cacheTime`](/config/gallery#cachetime), a separate cache in their browser. The visitor who sent the photo skips that one: the upload page's "Back to gallery" link fetches a fresh copy of the gallery page.
 
+## `shareResolutionConcurrency`
+
+**Type:** `int` · **Default:** `30`
+
+The most share lookups sent to Immich at once, across all visitors. Only a share's first view in each [`shareCacheTime`](#sharecachetime) window needs a lookup; repeat views are served from the cache and never wait on this limit.
+
+A request for a key that does not exist is never cached, so without a limit a burst of made-up keys, from probing or the background noise every public address gets, could send any number of requests to Immich at once. Raise it only if you expect many visitors to open *different* shares within the same few seconds. The smallest value is `1`.
+
+The upload service reads the same key, with the same default, for its own lookups.
+
 ## `gallery`
 
 **Type:** `object`
