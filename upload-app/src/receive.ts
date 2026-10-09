@@ -99,7 +99,9 @@ export type Admit = (
  * upload has been answered when this returns undefined.
  */
 export function createUploadAdmission(): Admit {
-  // Keyed on address and share; behind a reverse proxy every visitor has the proxy's address
+  // Keyed on address and share. Behind a reverse proxy the address is the
+  // proxy's, shared by every visitor, unless IPP_TRUST_PROXY is set: then
+  // req.ip is the forwarded visitor address
   const rate = createWindowBudget({ limit: rateLimit(), windowMs: 60_000 })
   const budget = createWindowBudget({ limit: byteBudget(), windowMs: 60 * 60_000 })
   const maxBytes = maxFileSize()
