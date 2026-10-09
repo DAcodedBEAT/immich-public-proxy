@@ -31,10 +31,11 @@ Request flow for a typical share URL like `https://proxy.example.com/share/<key>
 The repo is an npm workspace with three packages: `shared/` is `@ipp/core`, the read-side code both apps share; `app/` is IPP itself; and `upload-app/` is the optional upload service, the only code that writes to Immich. Run `npm install` at the root; there is one lockfile.
 
 ```
-.github/workflows/        ci.yaml builds and pushes both Docker images on v* tags; docs.yaml deploys the docs site
+.github/workflows/        test.yaml runs audit, build, test and lint on every push/PR; ci.yaml builds and pushes both Docker images on v* tags; docs.yaml deploys the docs site
 package.json              Workspace root: scripts that delegate to the workspaces; no dependencies
 package-lock.json         The one lockfile for every workspace
-.eslintrc                 Lint config for every workspace
+.oxlintrc.json            Lint config (oxlint) for every workspace
+.oxfmtrc.json             Formatter config (oxfmt) for every workspace
 shared/                   @ipp/core - read-side only, knows nothing about galleries
   src/
     index.ts              Barrel: everything the apps import comes from '@ipp/core'
@@ -123,7 +124,7 @@ The server tsconfig excludes `src/client/`; the client tsconfig only includes `s
 - **tsx** for running the server in dev with watch + ESM-native imports.
 - **concurrently** to run the server and client tsc watchers side-by-side in dev.
 - **vitest** for unit tests on pure functions.
-- **ESLint** with `eslint-config-standard`.
+- **oxlint** for linting and **oxfmt** for formatting.
 
 ## Development setup
 
@@ -150,7 +151,8 @@ At the repo root:
 ```bash
 npm run build           # core, then IPP's server and client; output to dist/ and app/public/js/
 npm test                # vitest run in every workspace, then the docs config check
-npm run lint            # ESLint over every workspace
+npm run lint            # oxlint, then oxfmt --check, over every workspace
+npm run lint:fix        # apply oxlint fixes and oxfmt formatting
 npm run bump -- 4.0.1   # set the version in every workspace manifest and the lockfile
 ```
 
@@ -187,7 +189,7 @@ Where to put a new function: ask what category of thing it is, not where it gets
 
 **No client framework, no bundler.** The client is TypeScript compiled file-for-file by `tsc` into plain ES modules served by Express static. Do not introduce a frontend framework (React / Svelte / Vue / Solid) or a bundler (Webpack / Rollup / Vite / Parcel). PhotoSwipe is loaded as ESM directly. Inter-module imports inside `app/src/client/` use `.js` extensions in the source: with no bundler, the browser fetches the compiled `.js` files directly, so the extension has to be present in the import path at runtime. `moduleResolution: bundler` is permissive about extensions in TypeScript-land; the constraint comes from the browser, not the TS config.
 
-**Code style.** ESLint standard config. Run lint locally before opening a PR.
+**Code style.** oxfmt formatting (no semicolons, single quotes) and oxlint's correctness rules; config in `.oxfmtrc.json` and `.oxlintrc.json`. Run `npm run lint` locally before opening a PR.
 
 ## Documentation
 
