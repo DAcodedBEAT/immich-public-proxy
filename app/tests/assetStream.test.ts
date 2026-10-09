@@ -325,6 +325,7 @@ describe('upstreamRange', () => {
   it('caps an open-ended range to one 2.5 MB chunk', () => {
     expect(upstreamRange('bytes=0-')).toBe('bytes=0-2499999')
     expect(upstreamRange('bytes=100-')).toBe('bytes=100-2500099')
+    expect(upstreamRange('bytes=5000000-')).toBe('bytes=5000000-7499999')
   })
 
   it('keeps a suffix range as the last N bytes', () => {
@@ -347,28 +348,91 @@ describe('upstreamRange', () => {
 })
 
 describe('assetBuffer video playback ranges', () => {
-  const video: Asset = {
-    ...asset,
-    id: 'v1',
-    type: AssetType.video,
-    originalFileName: 'v1.mp4',
-    originalMimeType: 'video/mp4'
+  /** Fetch stub that records the request headers and answers with a tiny body. */
+  function rangeFetch(
+    seen: { headers: Record<string, string>[] },
+    status: number,
+    headers: Record<string, string>
+  ) {
+    return vi.fn(async (_url: unknown, init?: RequestInit) => {
+      seen.headers.push({ ...(init?.headers as Record<string, string>) })
+      return new globalThis.Response(new Uint8Array(CHUNK), { status, headers })
+    })
   }
 
-  async function playback(range: string, status: number) {
-    const sent: (string | null)[] = []
+  it('requests a chunk, answers 206 and forwards the range headers', async () => {
+    const seen = { headers: [] as Record<string, string>[] }
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (_url: unknown, init?: RequestInit) => {
-        sent.push(new Headers(init?.headers).get('range'))
-        return new globalThis.Response(new Uint8Array(16), {
-          status,
-          headers: {
-            'content-type': 'video/mp4',
-            'content-range': 'bytes 0-15/9999999',
-            'cache-control': 'private'
-          }
-        })
+      rangeFetch(seen, 206, {
+        'content-type': 'video/mp4',
+        'content-range': 'bytes 0-2499999/9999999',
+        'cache-control': 'private'
+      })
+    )
+    const res = new FakeRes()
+    const codes: number[] = []
+    res.status = (code: number) => {
+      codes.push(code)
+      return res
+    }
+    await assetBuffer(
+      makeRequest('GET', 'bytes=0-'),
+      asResponse(res),
+      asset,
+      ImageSize.original,
+      shareOf(asset),
+      true
+    )
+    expect(seen.headers[0].range).toBe('bytes=0-2499999')
+    expect(codes).toEqual([206])
+    expect(res.headers['accept-ranges']).toBe('bytes')
+    expect(res.headers['content-range']).toBe('bytes 0-2499999/9999999')
+    expect(res.headers['cache-control']).toBe('private')
+    expect(res.received).toBe(CHUNK)
+  })
+
+  it('serves the whole file with 200 when the client sent no Range', async () => {
+    const seen = { headers: [] as Record<string, string>[] }
+    vi.stubGlobal(
+      'fetch',
+      rangeFetch(seen, 200, {
+        'content-type': 'video/mp4',
+        'content-range': 'bytes 0-2499999/9999999',
+        'cache-control': 'private'
+      })
+    )
+    const res = new FakeRes()
+    const codes: number[] = []
+    res.status = (code: number) => {
+      codes.push(code)
+      return res
+    }
+    await assetBuffer(
+      makeRequest(),
+      asResponse(res),
+      asset,
+      ImageSize.original,
+      shareOf(asset),
+      true
+    )
+    expect(seen.headers[0].range).toBeUndefined()
+    expect(codes).toEqual([])
+    expect(res.headers['accept-ranges']).toBe('bytes')
+    // Range-only headers must not leak onto a full 200 response
+    expect(res.headers['content-range']).toBeUndefined()
+    expect(res.headers['cache-control']).toBeUndefined()
+  })
+
+  /** Play `range` against an Immich that answers with `status`. */
+  async function playback(range: string, status: number) {
+    const seen = { headers: [] as Record<string, string>[] }
+    vi.stubGlobal(
+      'fetch',
+      rangeFetch(seen, status, {
+        'content-type': 'video/mp4',
+        'content-range': 'bytes 0-15/9999999',
+        'cache-control': 'private'
       })
     )
     const res = new FakeRes()
@@ -380,21 +444,13 @@ describe('assetBuffer video playback ranges', () => {
     await assetBuffer(
       makeRequest('GET', range),
       asResponse(res),
-      video,
+      asset,
       ImageSize.preview,
-      shareOf(video),
+      shareOf(asset),
       true
     )
-    return { sent: sent[0], codes, headers: res.headers }
+    return { sent: seen.headers[0].range, codes, headers: res.headers }
   }
-
-  it('answers 206 with Content-Range when Immich honours the range', async () => {
-    const { sent, codes, headers } = await playback('bytes=0-', 206)
-    expect(sent).toBe('bytes=0-2499999')
-    expect(codes).toEqual([206])
-    expect(headers['content-range']).toBe('bytes 0-15/9999999')
-    expect(headers['accept-ranges']).toBe('bytes')
-  })
 
   it('answers 200 without Content-Range when Immich ignores the range', async () => {
     const { sent, codes, headers } = await playback('bytes=0-', 200)
@@ -413,7 +469,7 @@ describe('assetBuffer video playback ranges', () => {
     'serves the whole file with 200 for the Range %s',
     async range => {
       const { sent, codes, headers } = await playback(range, 200)
-      expect(sent).toBeNull()
+      expect(sent).toBeUndefined()
       expect(codes).toEqual([])
       expect(headers['content-range']).toBeUndefined()
     }
