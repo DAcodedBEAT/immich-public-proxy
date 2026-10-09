@@ -12,14 +12,14 @@ import { findMotionPhotoStill } from './share'
   `valid`/`link`/`passwordRequired` checks live in one place.
 */
 export type ShareResolution =
-  | { ok: true, link: SharedLink }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink }
+  | { ok: false; status: number; reason: string; passwordRequired?: boolean }
 
 export type SharedAssetResolution =
-  | { ok: true, link: SharedLink, asset: Asset }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink; asset: Asset }
+  | { ok: false; status: number; reason: string; passwordRequired?: boolean }
 
-export async function resolveShare (req: Request, keyType: KeyType): Promise<ShareResolution> {
+export async function resolveShare(req: Request, keyType: KeyType): Promise<ShareResolution> {
   if (slugLinksDisabled(keyType)) {
     return { ok: false, status: 404, reason: 'Slug links are disabled in config.json' }
   }
@@ -40,7 +40,11 @@ export async function resolveShare (req: Request, keyType: KeyType): Promise<Sha
   return { ok: true, link: share.link }
 }
 
-export async function resolveSharedAsset (req: Request, keyType: KeyType, allowMotion = false): Promise<SharedAssetResolution> {
+export async function resolveSharedAsset(
+  req: Request,
+  keyType: KeyType,
+  allowMotion = false
+): Promise<SharedAssetResolution> {
   if (!isId(req.params.id)) {
     return { ok: false, status: 404, reason: 'Invalid ID for ' + req.path }
   }
@@ -59,7 +63,13 @@ export async function resolveSharedAsset (req: Request, keyType: KeyType, allowM
         ok: true,
         link: resolved.link,
         // Streams inline, so the still's filename / mime must not carry over.
-        asset: { ...parent, id: req.params.id, type: AssetType.video, originalFileName: undefined, originalMimeType: undefined }
+        asset: {
+          ...parent,
+          id: req.params.id,
+          type: AssetType.video,
+          originalFileName: undefined,
+          originalMimeType: undefined
+        }
       }
     }
   }

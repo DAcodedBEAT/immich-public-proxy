@@ -6,7 +6,7 @@ import { resetConfig, setConfig, share } from './helpers'
 afterEach(resetConfig)
 
 describe('authoriseUpload', () => {
-  it('issues a permit only when the share\'s Immich toggle is on', () => {
+  it("issues a permit only when the share's Immich toggle is on", () => {
     expect(authoriseUpload(share(), 'k', KeyType.key)).not.toBeNull()
     expect(authoriseUpload(share({ allowUpload: false }), 'k', KeyType.key)).toBeNull()
     expect(authoriseUpload(share({ allowUpload: undefined }), 'k', KeyType.key)).toBeNull()

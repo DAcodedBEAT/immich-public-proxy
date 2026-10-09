@@ -27,7 +27,7 @@ const reservedRe = /^\.+$/
 const windowsReservedRe = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i
 const windowsTrailingRe = /[. ]+$/
 
-export function sanitize (input: string, replacement = ''): string {
+export function sanitize(input: string, replacement = ''): string {
   if (typeof input !== 'string') {
     throw new Error('Input must be string')
   }

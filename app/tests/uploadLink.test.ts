@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { KeyType, loadConfig, SharedLink } from '@ipp/core'
 import { uploadHealthcheck, uploadLink } from '../src/share'
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -52,7 +52,9 @@ describe('uploadLink', () => {
 
   it('links a share opened by its slug by that slug', () => {
     setConfig({ ipp: { uploadUrl: 'https://photos.example.com/upload' } })
-    expect(uploadLink(share({ keyType: KeyType.slug, slug: 'holiday 2025' }))).toBe('https://photos.example.com/upload/s/holiday%202025')
+    expect(uploadLink(share({ keyType: KeyType.slug, slug: 'holiday 2025' }))).toBe(
+      'https://photos.example.com/upload/s/holiday%202025'
+    )
   })
 
   it('is absent when the owner has not allowed uploads', () => {

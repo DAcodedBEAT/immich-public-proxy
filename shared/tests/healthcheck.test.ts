@@ -9,12 +9,25 @@ import * as client from '../src/immich/client'
   passing for a working upload service (GitHub #300).
 */
 
-function response () {
-  const res = { body: undefined as string | undefined, code: 200, headers: {} as Record<string, string> }
+function response() {
+  const res = {
+    body: undefined as string | undefined,
+    code: 200,
+    headers: {} as Record<string, string>
+  }
   return Object.assign(res, {
-    set (name: string, value: string) { res.headers[name] = value; return res },
-    send (body?: string) { res.body = body; return res },
-    status (code: number) { res.code = code; return res }
+    set(name: string, value: string) {
+      res.headers[name] = value
+      return res
+    },
+    send(body?: string) {
+      res.body = body
+      return res
+    },
+    status(code: number) {
+      res.code = code
+      return res
+    }
   })
 }
 

@@ -23,7 +23,7 @@ describe('unlockHandler', () => {
 
   afterAll(() => server?.close())
 
-  async function unlock (body: unknown): Promise<Response> {
+  async function unlock(body: unknown): Promise<Response> {
     return fetch(base + '/share/unlock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

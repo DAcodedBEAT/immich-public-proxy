@@ -18,7 +18,7 @@ import { apiUrl, buildUrl } from './client'
 const tokenCache = new TtlLruCache<Promise<string | null>>({ ttlMs: 120_000, max: 100 })
 
 /** Whether this is a slug link and the operator has turned slug links off. */
-export function slugLinksDisabled (keyType: KeyType): boolean {
+export function slugLinksDisabled(keyType: KeyType): boolean {
   return keyType === KeyType.slug && !getConfigOption('ipp.allowSlugLinks', true)
 }
 
@@ -26,7 +26,7 @@ export function slugLinksDisabled (keyType: KeyType): boolean {
  * Display title for a shared link. Prefers the user-set link description,
  * falls back to the album name (for album shares), or a generic placeholder.
  */
-export function title (share: SharedLink): string {
+export function title(share: SharedLink): string {
   return share.description || share?.album?.albumName || 'Gallery'
 }
 
@@ -40,7 +40,11 @@ export function title (share: SharedLink): string {
  * is `{ valid: false }`; a 401 for anything other than a bad key is
  * `passwordRequired`.
  */
-export async function fetchSharedLink (key: string, keyType: KeyType = KeyType.key, password?: string): Promise<SharedLinkResult> {
+export async function fetchSharedLink(
+  key: string,
+  keyType: KeyType = KeyType.key,
+  password?: string
+): Promise<SharedLinkResult> {
   const url = buildUrl(apiUrl() + '/shared-links/me', {
     [keyType]: key
   })
@@ -65,7 +69,10 @@ export async function fetchSharedLink (key: string, keyType: KeyType = KeyType.k
       } else if (res.status === 401) {
         // Immich returns 401 for both invalid keys and password-protected shares.
         // Check the message to distinguish between the two cases.
-        if (jsonBody?.message === 'Invalid share key' || jsonBody?.message === 'Invalid share slug') {
+        if (
+          jsonBody?.message === 'Invalid share key' ||
+          jsonBody?.message === 'Invalid share slug'
+        ) {
           // Known invalid key/slug - treat as invalid request
           log('Invalid share key ' + key)
         } else {
@@ -102,7 +109,11 @@ export async function fetchSharedLink (key: string, keyType: KeyType = KeyType.k
  * has no password or login failed; in those cases Immich will respond 401
  * for protected resources, which the caller handles as "password required".
  */
-export async function authHeaders (keyType: KeyType, key: string, password?: string): Promise<Record<string, string>> {
+export async function authHeaders(
+  keyType: KeyType,
+  key: string,
+  password?: string
+): Promise<Record<string, string>> {
   if (!password) return {}
   const token = await getSharedLinkToken(key, password, keyType)
   return token ? { Cookie: `immich_shared_link_token=${token}` } : {}
@@ -115,7 +126,11 @@ export async function authHeaders (keyType: KeyType, key: string, password?: str
  * authenticated session. See `tokenCache` doc-comment for the security
  * argument.
  */
-function getSharedLinkToken (key: string, password: string, keyType: KeyType): Promise<string | null> {
+function getSharedLinkToken(
+  key: string,
+  password: string,
+  keyType: KeyType
+): Promise<string | null> {
   const cacheKey = `${keyType}:${key}:${password}`
   // Default eviction (falsy is invalid) drops a null/empty token, so a failed
   // login is never cached.
@@ -126,7 +141,11 @@ function getSharedLinkToken (key: string, password: string, keyType: KeyType): P
  * `POST /shared-links/login`. Replaces the deprecated `?password=...` query
  * param. Returns the cookie value on success, null on any failure.
  */
-async function sharedLinkLogin (key: string, password: string, keyType: KeyType): Promise<string | null> {
+async function sharedLinkLogin(
+  key: string,
+  password: string,
+  keyType: KeyType
+): Promise<string | null> {
   const url = buildUrl(apiUrl() + '/shared-links/login', { [keyType]: key })
   try {
     const res = await fetch(url, {

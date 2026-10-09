@@ -4,7 +4,11 @@ import { addNoStoreHeaders } from './http'
 import { log } from './utils/log'
 
 /** The public contract of a 404 handler, kept stable for operator replacements. */
-export type InvalidRequestHandler = (res: Response, defaultResponse: number | string | null, logMessage?: string) => void
+export type InvalidRequestHandler = (
+  res: Response,
+  defaultResponse: number | string | null,
+  logMessage?: string
+) => void
 
 /**
  * Respond to any request that the app would otherwise serve content for but
@@ -22,7 +26,11 @@ export type InvalidRequestHandler = (res: Response, defaultResponse: number | st
  * operators may replace by a volume mount, and registers it at startup. Keep
  * the two in step.
  */
-export const defaultInvalidRequestHandler: InvalidRequestHandler = (res, defaultResponse, logMessage = '') => {
+export const defaultInvalidRequestHandler: InvalidRequestHandler = (
+  res,
+  defaultResponse,
+  logMessage = ''
+) => {
   let method = getConfigOption('ipp.customInvalidResponse', false)
   if (method === false) {
     // No custom method specified, use the default
@@ -54,7 +62,7 @@ let handler: InvalidRequestHandler = defaultInvalidRequestHandler
  * Replace the handler that `respondToInvalidRequest` calls. Each app calls
  * this once at startup if it ships its own handler file.
  */
-export function setInvalidRequestHandler (fn: InvalidRequestHandler): void {
+export function setInvalidRequestHandler(fn: InvalidRequestHandler): void {
   handler = fn
 }
 
@@ -65,7 +73,11 @@ export function setInvalidRequestHandler (fn: InvalidRequestHandler): void {
  * Never cacheable: routes apply `ipp.responseHeaders` (a 30-day public TTL by
  * default) before they know the request is valid.
  */
-export function respondToInvalidRequest (res: Response, defaultResponse: number | string | null, logMessage = ''): void {
+export function respondToInvalidRequest(
+  res: Response,
+  defaultResponse: number | string | null,
+  logMessage = ''
+): void {
   addNoStoreHeaders(res)
   handler(res, defaultResponse, logMessage)
 }
@@ -74,9 +86,15 @@ export function respondToInvalidRequest (res: Response, defaultResponse: number 
  * Terminal Express error middleware. Logs the error server-side, then applies the
  * same privacy policy as any other invalid request.
  */
-export function errorHandler (err: unknown, req: Request, res: Response, _next: NextFunction): void {
-  log.error('Error handling ' + req.method + ' ' + req.path + ' - ' +
-    (err instanceof Error ? (err.stack || err.message) : String(err)))
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+  log.error(
+    'Error handling ' +
+      req.method +
+      ' ' +
+      req.path +
+      ' - ' +
+      (err instanceof Error ? err.stack || err.message : String(err))
+  )
   if (res.headersSent) {
     res.end()
     return

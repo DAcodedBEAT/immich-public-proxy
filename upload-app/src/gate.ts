@@ -36,12 +36,17 @@ export interface UploadPermit {
 }
 
 /** Whether this share accepts uploads through this key type right now. */
-export function uploadAllowed (link: SharedLink, keyType: KeyType): boolean {
+export function uploadAllowed(link: SharedLink, keyType: KeyType): boolean {
   return link.allowUpload === true && !slugLinksDisabled(keyType)
 }
 
 /** Issue a permit, or null when this share does not accept uploads. */
-export function authoriseUpload (link: SharedLink, key: string, keyType: KeyType, password?: string): UploadPermit | null {
+export function authoriseUpload(
+  link: SharedLink,
+  key: string,
+  keyType: KeyType,
+  password?: string
+): UploadPermit | null {
   if (!uploadAllowed(link, keyType)) return null
   return { [permitBrand]: true, link, key, keyType, password } as UploadPermit
 }
@@ -50,7 +55,7 @@ export function authoriseUpload (link: SharedLink, key: string, keyType: KeyType
  * Re-check the gate at the point of use. Throws, because reaching here
  * without a valid permit is a bug, not a visitor error.
  */
-export function assertPermit (permit: UploadPermit): void {
+export function assertPermit(permit: UploadPermit): void {
   if (!permit || permit[permitBrand] !== true) {
     throw new Error('Upload attempted without a permit')
   }

@@ -5,8 +5,8 @@ import { AssetVisibility, KeyType } from '@ipp/core'
  * One entry of `GET /timeline/buckets` - a time bucket (month) and its count.
  */
 export interface TimelineBucket {
-  timeBucket: string;
-  count: number;
+  timeBucket: string
+  count: number
 }
 
 /**
@@ -15,19 +15,19 @@ export interface TimelineBucket {
  * the fields the gallery grid needs are typed here; Immich returns more.
  */
 export interface TimelineBucketAssets {
-  id: string[];
-  isImage: boolean[];
+  id: string[]
+  isImage: boolean[]
   // width / height ratio (Immich's `ratio` already accounts for orientation)
-  ratio: number[];
-  thumbhash: (string | null)[];
-  isTrashed: boolean[];
-  fileCreatedAt: string[];
+  ratio: number[]
+  thumbhash: (string | null)[]
+  isTrashed: boolean[]
+  fileCreatedAt: string[]
   // UTC offset (hours, may be fractional) at the time each photo was taken.
   // Applying it to fileCreatedAt yields the photographer's local time.
-  localOffsetHours: number[];
+  localOffsetHours: number[]
   // Motion photo (Live Photo) clip id; null for ordinary assets.
-  livePhotoVideoId: (string | null)[];
-  visibility: AssetVisibility[];
+  livePhotoVideoId: (string | null)[]
+  visibility: AssetVisibility[]
 }
 
 export enum ImageSize {
@@ -38,13 +38,13 @@ export enum ImageSize {
 }
 
 export interface IncomingShareRequest {
-  req: Request;
-  key: string;
-  keyType?: KeyType;
-  password?: string;
-  mode?: string;
-  size?: ImageSize;
-  range?: string;
+  req: Request
+  key: string
+  keyType?: KeyType
+  password?: string
+  mode?: string
+  size?: ImageSize
+  range?: string
 }
 
 export enum DownloadAll {

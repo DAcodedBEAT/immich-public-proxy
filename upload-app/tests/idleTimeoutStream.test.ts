@@ -4,7 +4,7 @@ import { createIdleTimeoutStream, IdleTimeoutError } from '../src/idleTimeoutStr
 afterEach(() => vi.useRealTimers())
 
 /** Resolve with the stream's error, or undefined when it ends cleanly. */
-function outcome (stream: NodeJS.ReadableStream): Promise<Error | undefined> {
+function outcome(stream: NodeJS.ReadableStream): Promise<Error | undefined> {
   return new Promise(resolve => {
     stream.on('data', () => {})
     stream.on('error', resolve)

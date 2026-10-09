@@ -23,19 +23,33 @@ describe('asyncHandler + errorHandler', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const app = express()
-    app.get('/ok', asyncHandler(async (_req, res) => { res.send('ok') }))
-    app.get('/boom', asyncHandler(async () => {
-      throw new TypeError("Cannot read properties of undefined (reading 'headers')")
-    }))
-    app.get('/public-boom', asyncHandler(async (_req, res) => {
-      res.set('Cache-Control', 'public, max-age=2592000')
-      throw new Error('failed after the operator headers were applied')
-    }))
-    app.get('/mid-stream', asyncHandler(async (_req, res) => {
-      res.status(200)
-      res.write('partial')
-      throw new Error('upstream died mid-response')
-    }))
+    app.get(
+      '/ok',
+      asyncHandler(async (_req, res) => {
+        res.send('ok')
+      })
+    )
+    app.get(
+      '/boom',
+      asyncHandler(async () => {
+        throw new TypeError("Cannot read properties of undefined (reading 'headers')")
+      })
+    )
+    app.get(
+      '/public-boom',
+      asyncHandler(async (_req, res) => {
+        res.set('Cache-Control', 'public, max-age=2592000')
+        throw new Error('failed after the operator headers were applied')
+      })
+    )
+    app.get(
+      '/mid-stream',
+      asyncHandler(async (_req, res) => {
+        res.status(200)
+        res.write('partial')
+        throw new Error('upstream died mid-response')
+      })
+    )
     app.use(errorHandler)
 
     await new Promise<void>(resolve => {

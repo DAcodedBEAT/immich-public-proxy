@@ -26,7 +26,9 @@ const RETRY_BASE_MS = 2000
 // A Retry-After longer than this is shown as a failure rather than waited out
 const MAX_RETRY_WAIT_MS = 60_000
 
-const config = JSON.parse(document.getElementById('upload-init')?.textContent || '{}') as UploadPageConfig
+const config = JSON.parse(
+  document.getElementById('upload-init')?.textContent || '{}'
+) as UploadPageConfig
 const run = createLimiter(CONCURRENT_UPLOADS)
 
 const nameEl = document.getElementById('upload-name') as HTMLInputElement | null
@@ -65,22 +67,23 @@ interface UploadRow {
 */
 const stats = { total: 0, remaining: 0, uploaded: 0, errors: 0, duplicates: 0 }
 
-function updateSummary () {
+function updateSummary() {
   progressEl.textContent = `Remaining ${stats.remaining} - Processed ${stats.total - stats.remaining}/${stats.total}`
-  countsEl.innerHTML = 'Uploaded <span class="upload-count-success"></span> - Errors <span class="upload-count-danger"></span> - Duplicates <span class="upload-count-warning"></span>'
+  countsEl.innerHTML =
+    'Uploaded <span class="upload-count-success"></span> - Errors <span class="upload-count-danger"></span> - Duplicates <span class="upload-count-warning"></span>'
   const [uploaded, errors, duplicates] = countsEl.querySelectorAll('span')
   uploaded.textContent = String(stats.uploaded)
   errors.textContent = String(stats.errors)
   duplicates.textContent = String(stats.duplicates)
 }
 
-function setState (row: UploadRow, state: RowState) {
+function setState(row: UploadRow, state: RowState) {
   row.li.dataset.state = state
   row.icon.innerHTML = iconSvg(STATE_ICONS[state])
 }
 
 /** Swap the row's button: cancel while queued or sending, retry or dismiss afterwards. */
-function setAction (row: UploadRow, kind: 'cancel' | 'retry' | 'dismiss') {
+function setAction(row: UploadRow, kind: 'cancel' | 'retry' | 'dismiss') {
   const labels = { cancel: 'Cancel', retry: 'Retry', dismiss: 'Dismiss' }
   row.action.dataset.kind = kind
   row.action.setAttribute('aria-label', labels[kind] + ' ' + row.file.name)
@@ -89,11 +92,11 @@ function setAction (row: UploadRow, kind: 'cancel' | 'retry' | 'dismiss') {
 }
 
 /** Remove any progress bar or error line under the row's main line. */
-function clearDetail (row: UploadRow) {
+function clearDetail(row: UploadRow) {
   row.li.querySelector('.upload-row-detail')?.remove()
 }
 
-function showProgress (row: UploadRow, text: string, percent: number) {
+function showProgress(row: UploadRow, text: string, percent: number) {
   let bar = row.li.querySelector('.upload-row-detail.upload-bar') as HTMLElement | null
   if (!bar) {
     clearDetail(row)
@@ -108,7 +111,7 @@ function showProgress (row: UploadRow, text: string, percent: number) {
   label.textContent = text
 }
 
-function showError (row: UploadRow, message: string) {
+function showError(row: UploadRow, message: string) {
   clearDetail(row)
   const p = document.createElement('p')
   p.className = 'upload-row-detail upload-row-error'
@@ -122,7 +125,7 @@ function showError (row: UploadRow, message: string) {
  * gets IPP's current copy of the share rather than the one from before. A new
  * value each time, because the visitor may already have opened the last one.
  */
-function freshenBackLink () {
+function freshenBackLink() {
   const back = document.getElementById('upload-back') as HTMLAnchorElement | null
   if (!back) return
   const url = new URL(back.href)
@@ -131,7 +134,12 @@ function freshenBackLink () {
 }
 
 /** Record a finished row: its state, its counter, and the button it keeps. */
-function finish (row: UploadRow, state: 'done' | 'duplicate' | 'error', message?: string, retryable = false) {
+function finish(
+  row: UploadRow,
+  state: 'done' | 'duplicate' | 'error',
+  message?: string,
+  retryable = false
+) {
   setState(row, state)
   clearDetail(row)
   if (state === 'error') {
@@ -147,7 +155,7 @@ function finish (row: UploadRow, state: 'done' | 'duplicate' | 'error', message?
 }
 
 /** Build the panel row for one file: status icon, name, and its button. */
-function addRow (file: File, type: string): UploadRow {
+function addRow(file: File, type: string): UploadRow {
   const li = document.createElement('li')
   li.className = 'upload-row'
   const line = document.createElement('div')
@@ -186,15 +194,17 @@ function addRow (file: File, type: string): UploadRow {
 }
 
 type Attempt =
-  | { outcome: 'sent', duplicate: boolean }
-  | { outcome: 'failed', message: string, retryable: boolean }
-  | { outcome: 'retry', waitMs: number }
+  | { outcome: 'sent'; duplicate: boolean }
+  | { outcome: 'failed'; message: string; retryable: boolean }
+  | { outcome: 'retry'; waitMs: number }
   | { outcome: 'cancelled' }
 
 /** The visitor-facing reason for a refused upload. */
-function failureMessage (xhr: XMLHttpRequest): string {
+function failureMessage(xhr: XMLHttpRequest): string {
   let reply: Partial<UploadErrorResponse> | undefined
-  try { reply = JSON.parse(xhr.responseText) } catch { }
+  try {
+    reply = JSON.parse(xhr.responseText)
+  } catch {}
   if (reply?.error) return reply.error
   // Not our JSON, so a proxy in front of the upload service answered
   if (xhr.status === 413) return 'Too large for this server'
@@ -208,16 +218,20 @@ function failureMessage (xhr: XMLHttpRequest): string {
  * `Retry-After`). A refused file or a closed share fails the same way every
  * time, so those rows get Dismiss rather than Retry.
  */
-function failure (xhr: XMLHttpRequest): Attempt {
+function failure(xhr: XMLHttpRequest): Attempt {
   const retryable = xhr.status >= 500 || xhr.getResponseHeader('Retry-After') !== null
   return { outcome: 'failed', message: failureMessage(xhr), retryable }
 }
 
 /** One request for one file. XHR rather than fetch, because only XHR reports upload progress. */
-function attempt (row: UploadRow, attemptNumber: number): Promise<Attempt> {
+function attempt(row: UploadRow, attemptNumber: number): Promise<Attempt> {
   return new Promise(resolve => {
     const timestamp = new Date(row.file.lastModified || Date.now()).toISOString()
-    const query = new URLSearchParams({ filename: row.file.name, fileCreatedAt: timestamp, fileModifiedAt: timestamp })
+    const query = new URLSearchParams({
+      filename: row.file.name,
+      fileCreatedAt: timestamp,
+      fileModifiedAt: timestamp
+    })
     // Read when the file is sent, so a name typed after choosing the files still counts
     const uploader = nameEl?.value.trim()
     if (uploader) query.set('uploader', uploader)
@@ -239,11 +253,17 @@ function attempt (row: UploadRow, attemptNumber: number): Promise<Attempt> {
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         let reply: Partial<UploadResponse> | undefined
-        try { reply = JSON.parse(xhr.responseText) } catch { }
+        try {
+          reply = JSON.parse(xhr.responseText)
+        } catch {}
         resolve({ outcome: 'sent', duplicate: reply?.status === 'duplicate' })
       } else if (xhr.status === 429) {
         const seconds = Number(xhr.getResponseHeader('Retry-After'))
-        resolve(Number.isFinite(seconds) && seconds > 0 ? { outcome: 'retry', waitMs: seconds * 1000 } : backoff)
+        resolve(
+          Number.isFinite(seconds) && seconds > 0
+            ? { outcome: 'retry', waitMs: seconds * 1000 }
+            : backoff
+        )
       } else {
         resolve(failure(xhr))
       }
@@ -256,7 +276,7 @@ function attempt (row: UploadRow, attemptNumber: number): Promise<Attempt> {
 }
 
 /** Wait before a retry; cancelling the row ends the wait. */
-function waitToRetry (row: UploadRow, ms: number): Promise<void> {
+function waitToRetry(row: UploadRow, ms: number): Promise<void> {
   return new Promise(resolve => {
     const timer = setTimeout(resolve, ms)
     row.wake = () => {
@@ -267,7 +287,7 @@ function waitToRetry (row: UploadRow, ms: number): Promise<void> {
 }
 
 /** Send one file, retrying a rate limit or a network error, and record the result on its row. */
-async function sendFile (row: UploadRow) {
+async function sendFile(row: UploadRow) {
   for (let attemptNumber = 1; !row.cancelled; attemptNumber++) {
     setState(row, 'started')
     showProgress(row, '0%', 0)
@@ -292,20 +312,20 @@ async function sendFile (row: UploadRow) {
 }
 
 /** Start a new batch if the last one has finished. */
-function startBatchIfIdle () {
+function startBatchIfIdle() {
   if (stats.remaining > 0) return
   stats.total = stats.uploaded = stats.errors = stats.duplicates = 0
 }
 
 /** Put a row in the send queue and count it as remaining. */
-function queue (row: UploadRow) {
+function queue(row: UploadRow) {
   row.cancelled = false
   setState(row, 'pending')
   setAction(row, 'cancel')
   clearDetail(row)
   stats.remaining++
   updateSummary()
-  run(() => row.cancelled ? Promise.resolve() : sendFile(row)).finally(() => {
+  run(() => (row.cancelled ? Promise.resolve() : sendFile(row))).finally(() => {
     stats.remaining--
     // A cancelled file leaves the batch altogether
     if (row.cancelled) stats.total--
@@ -314,7 +334,7 @@ function queue (row: UploadRow) {
 }
 
 /** Queue files. Anything the server would refuse anyway is refused here, before it costs the visitor's uplink. */
-function queueFiles (files: File[]) {
+function queueFiles(files: File[]) {
   if (!files.length) return
   startBatchIfIdle()
   panelEl.hidden = false
@@ -338,7 +358,7 @@ function queueFiles (files: File[]) {
  * `dragenter` and `dragleave` fire per element, so the depth counter stops
  * the overlay flickering as the pointer crosses child nodes.
  */
-function setupDragAndDrop () {
+function setupDragAndDrop() {
   let depth = 0
   const carriesFiles = (e: DragEvent) => !!e.dataTransfer?.types?.includes('Files')
   const hide = () => {
@@ -375,11 +395,11 @@ const NAME_KEY = 'ipp-uploader-name'
 if (nameEl) {
   try {
     nameEl.value = localStorage.getItem(NAME_KEY) || ''
-  } catch { }
+  } catch {}
   nameEl.addEventListener('change', () => {
     try {
       localStorage.setItem(NAME_KEY, nameEl.value.trim())
-    } catch { }
+    } catch {}
   })
 }
 

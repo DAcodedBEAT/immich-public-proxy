@@ -7,18 +7,28 @@ describe('readUploadFilename', () => {
   const read = (name: string, separator = ',') => readUploadFilename(name, 'ipp_upload_', separator)
 
   it('reads the name that uploadFilename wrote', () => {
-    for (const [file, uploader] of [['IMG_0042.jpg', 'jane-smith'], ['Paris France.jpg', 'zoë-müller'], ['a.png', '山田-太郎']]) {
+    for (const [file, uploader] of [
+      ['IMG_0042.jpg', 'jane-smith'],
+      ['Paris France.jpg', 'zoë-müller'],
+      ['a.png', '山田-太郎']
+    ]) {
       const stored = uploadFilename(file, 'ipp_upload_', uploader) || ''
       expect(read(stored)).toEqual({ kind: 'named', uploader })
     }
   })
 
   it('reads a configured separator', () => {
-    expect(read('ipp_upload_jane-smith^Paris, France.jpg', '^')).toEqual({ kind: 'named', uploader: 'jane-smith' })
+    expect(read('ipp_upload_jane-smith^Paris, France.jpg', '^')).toEqual({
+      kind: 'named',
+      uploader: 'jane-smith'
+    })
   })
 
   it('takes the first field as the uploader when later fields exist', () => {
-    expect(read('ipp_upload_jane-smith,34,IMG_0042.jpg')).toEqual({ kind: 'named', uploader: 'jane-smith' })
+    expect(read('ipp_upload_jane-smith,34,IMG_0042.jpg')).toEqual({
+      kind: 'named',
+      uploader: 'jane-smith'
+    })
   })
 
   it('is anonymous with no fields or an empty name field', () => {
@@ -43,10 +53,15 @@ const ME = 'aaaaaaaa-0000-4000-8000-000000000001'
 const PARTNER = 'aaaaaaaa-0000-4000-8000-000000000002'
 
 /** A fake Immich: one owner, a few uploads over two search pages, and tag state that persists between runs. */
-function fakeImmich (extraAssets: Array<Record<string, unknown>> = []) {
+function fakeImmich(extraAssets: Array<Record<string, unknown>> = []) {
   let next = 0
   const asset = (originalFileName: string, extra: Record<string, unknown> = {}) => ({
-    id: 'asset-' + (++next), ownerId: ME, originalFileName, visibility: 'timeline', isTrashed: false, ...extra
+    id: 'asset-' + ++next,
+    ownerId: ME,
+    originalFileName,
+    visibility: 'timeline',
+    isTrashed: false,
+    ...extra
   })
   const page1 = [
     asset('ipp_upload_jane-smith,IMG_0042.jpg'),
@@ -59,26 +74,38 @@ function fakeImmich (extraAssets: Array<Record<string, unknown>> = []) {
     asset('my_ipp_upload_bob,IMG_0046.jpg'),
     asset('IPP_UPLOAD_bob,IMG_0047.jpg')
   ]
-  const page2 = [asset('ipp_upload_zoë-müller,beach.png'), ...extraAssets.map(a => asset(String(a.originalFileName), a))]
+  const page2 = [
+    asset('ipp_upload_zoë-müller,beach.png'),
+    ...extraAssets.map(a => asset(String(a.originalFileName), a))
+  ]
   const tags = new Map<string, string>()
   const tagged = new Set<string>()
-  const calls: Array<{ method: string, path: string, body: { assetIds: string[] } }> = []
+  const calls: Array<{ method: string; path: string; body: { assetIds: string[] } }> = []
 
   const fetch = vi.fn(async (url: string, init: RequestInit) => {
     const path = url.replace('http://immich.test/api', '')
     const body = init.body ? JSON.parse(String(init.body)) : undefined
     calls.push({ method: init.method || 'GET', path, body })
-    const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
-    if ((init.headers as Record<string, string>)['x-api-key'] !== 'good-key') return json({ message: 'Invalid API key' }, 401)
+    const json = (value: unknown, status = 200) =>
+      new Response(JSON.stringify(value), {
+        status,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    if ((init.headers as Record<string, string>)['x-api-key'] !== 'good-key')
+      return json({ message: 'Invalid API key' }, 401)
     if (path === '/users/me') return json({ id: ME })
     if (path === '/search/metadata') {
-      return json({ assets: body.page === 1 ? { items: page1, nextPage: '2' } : { items: page2, nextPage: null } })
+      return json({
+        assets: body.page === 1 ? { items: page1, nextPage: '2' } : { items: page2, nextPage: null }
+      })
     }
     if (path === '/tags') {
-      return json(body.tags.map((value: string) => {
-        if (!tags.has(value)) tags.set(value, 'tag-' + (tags.size + 1))
-        return { id: tags.get(value), value }
-      }))
+      return json(
+        body.tags.map((value: string) => {
+          if (!tags.has(value)) tags.set(value, 'tag-' + (tags.size + 1))
+          return { id: tags.get(value), value }
+        })
+      )
     }
     if (path === '/tags/assets') {
       let count = 0
@@ -98,7 +125,13 @@ function fakeImmich (extraAssets: Array<Record<string, unknown>> = []) {
 describe('tagUploads', () => {
   let lines: string[]
   const options = (overrides: Partial<TagOptions> = {}): TagOptions => ({
-    apiKey: 'good-key', apply: false, parent: 'Uploaded', prefix: 'ipp_upload_', separator: ',', print: line => lines.push(line), ...overrides
+    apiKey: 'good-key',
+    apply: false,
+    parent: 'Uploaded',
+    prefix: 'ipp_upload_',
+    separator: ',',
+    print: line => lines.push(line),
+    ...overrides
   })
 
   beforeEach(() => {
@@ -125,7 +158,7 @@ describe('tagUploads', () => {
     expect(lines.at(-1)).toMatch(/^Dry run/)
   })
 
-  it('keeps only the owner\'s untrashed, visible files that start with the exact prefix', async () => {
+  it("keeps only the owner's untrashed, visible files that start with the exact prefix", async () => {
     const immich = fakeImmich()
     vi.stubGlobal('fetch', immich.fetch)
     const summary = await tagUploads(options())
@@ -148,11 +181,15 @@ describe('tagUploads', () => {
   })
 
   it('sends large sets in batches', async () => {
-    const many = Array.from({ length: 1201 }, (_, i) => ({ originalFileName: `ipp_upload_crowd,IMG_${i}.jpg` }))
+    const many = Array.from({ length: 1201 }, (_, i) => ({
+      originalFileName: `ipp_upload_crowd,IMG_${i}.jpg`
+    }))
     const immich = fakeImmich(many)
     vi.stubGlobal('fetch', immich.fetch)
     const summary = await tagUploads(options({ apply: true }))
-    const batches = immich.calls.filter(call => call.path === '/tags/assets').map(call => call.body.assetIds.length)
+    const batches = immich.calls
+      .filter(call => call.path === '/tags/assets')
+      .map(call => call.body.assetIds.length)
     expect(batches).toEqual([500, 500, 201, 2, 1])
     expect(summary.tagged).toBe(1204)
   })
@@ -166,7 +203,9 @@ describe('tagUploads', () => {
 
   it('stops with a useful message when Immich refuses the key', async () => {
     vi.stubGlobal('fetch', fakeImmich().fetch)
-    await expect(tagUploads(options({ apiKey: 'bad-key' }))).rejects.toThrow(/status 401: Invalid API key\. Check IMMICH_API_KEY\./)
+    await expect(tagUploads(options({ apiKey: 'bad-key' }))).rejects.toThrow(
+      /status 401: Invalid API key\. Check IMMICH_API_KEY\./
+    )
   })
 })
 
@@ -174,7 +213,9 @@ describe('main', () => {
   let errors: string[]
   beforeEach(() => {
     errors = []
-    vi.spyOn(console, 'error').mockImplementation((line: string) => { errors.push(line) })
+    vi.spyOn(console, 'error').mockImplementation((line: string) => {
+      errors.push(line)
+    })
     vi.spyOn(console, 'log').mockImplementation(() => {})
     process.env.IMMICH_URL = 'http://immich.test'
     process.env.IMMICH_API_KEY = 'good-key'
@@ -193,7 +234,7 @@ describe('main', () => {
     expect(errors[0]).toMatch(/^IMMICH_API_KEY is not set/)
   })
 
-  it('refuses an empty prefix, which would match the owner\'s own photos', async () => {
+  it("refuses an empty prefix, which would match the owner's own photos", async () => {
     setConfig({ ipp: { upload: { filenamePrefix: '' } } })
     expect(await main([])).toBe(2)
     expect(errors[0]).toMatch(/prefix is empty/)

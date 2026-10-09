@@ -2,8 +2,8 @@
   "name": "immich-public-proxy-docs",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Documentation site for Immich Public Proxy, built with VitePress.",
+  "type": "module",
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",

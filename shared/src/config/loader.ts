@@ -27,7 +27,7 @@ let currentConfig: Config = {}
  * Called once from each app's `index.ts` at startup. Safe to call again in
  * tests with a fresh env to reset state.
  */
-export function loadConfig ({ defaultPath }: LoadConfigOptions = {}): Config {
+export function loadConfig({ defaultPath }: LoadConfigOptions = {}): Config {
   let config: Config = {}
   try {
     if (process.env.CONFIG) {
@@ -54,6 +54,6 @@ export function loadConfig ({ defaultPath }: LoadConfigOptions = {}): Config {
  * Return the most recently loaded config, or an empty object if
  * `loadConfig()` hasn't been called yet. Used by `getConfigOption`.
  */
-export function getCurrentConfig (): Config {
+export function getCurrentConfig(): Config {
   return currentConfig
 }

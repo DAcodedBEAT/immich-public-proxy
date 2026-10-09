@@ -12,7 +12,7 @@ export const UPLOAD_ACCEPT = 'image/*,video/*'
  * extension and refuses anything outside its own list, so the finer check is
  * left to Immich.
  */
-export function isUploadableType (mimeType: string): boolean {
+export function isUploadableType(mimeType: string): boolean {
   const type = (mimeType || '').split(';')[0].trim().toLowerCase()
   if (type === 'image/svg+xml') return false
   return type.startsWith('image/') || type.startsWith('video/')
@@ -26,7 +26,7 @@ const REFUSED_EXTENSIONS = new Set(['svg', 'svgz'])
  * claim and Immich types the stored asset by its extension, so the SVG rule
  * has to hold on the name as well or `evil.svg` sent as `image/jpeg` gets in.
  */
-export function isUploadableName (filename: string): boolean {
+export function isUploadableName(filename: string): boolean {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
   return !REFUSED_EXTENSIONS.has(extension)
 }
@@ -64,14 +64,14 @@ const TYPE_BY_EXTENSION: Record<string, string> = {
  * browser gives none or a generic one (Chrome reports HEIC from the file
  * picker as `application/octet-stream`).
  */
-export function fileType (name: string, browserType: string): string {
+export function fileType(name: string, browserType: string): string {
   if (isUploadableType(browserType)) return browserType
   const extension = name.split('.').pop()?.toLowerCase() || ''
   return TYPE_BY_EXTENSION[extension] || browserType
 }
 
 /** Bytes as a short human-readable string. */
-export function formatSize (bytes: number): string {
+export function formatSize(bytes: number): string {
   if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
   if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
   if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB'

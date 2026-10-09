@@ -10,7 +10,7 @@ import { toString } from './utils/text'
 // Extend the Request type with a `password` property
 declare module 'express-serve-static-core' {
   interface Request {
-    password?: string;
+    password?: string
   }
 }
 
@@ -30,7 +30,7 @@ export interface SessionOptions {
  * Cookie-session middleware holding the encrypted share passwords. The
  * signing secret is random per process, so a restart signs every visitor out.
  */
-export function sessionMiddleware ({ name, path = '/' }: SessionOptions) {
+export function sessionMiddleware({ name, path = '/' }: SessionOptions) {
   return cookieSession({
     name,
     path,
@@ -43,19 +43,21 @@ export function sessionMiddleware ({ name, path = '/' }: SessionOptions) {
 /**
  * Middleware to decode the encrypted data stored in the session cookie
  */
-export function decodeCookie (req: Request, _res: Response, next: NextFunction) {
+export function decodeCookie(req: Request, _res: Response, next: NextFunction) {
   const shareKey = req.params.key
   const session = req.session?.[shareKey]
   if (shareKey && session?.iv && session?.cr) {
     try {
-      const payload = JSON.parse(decrypt({
-        iv: toString(session.iv),
-        cr: toString(session.cr)
-      }))
+      const payload = JSON.parse(
+        decrypt({
+          iv: toString(session.iv),
+          cr: toString(session.cr)
+        })
+      )
       if (payload?.expires && dayjs(payload.expires) > dayjs()) {
         req.password = payload.password
       }
-    } catch (e) { }
+    } catch (e) {}
   }
   next()
 }
@@ -69,12 +71,14 @@ export function decodeCookie (req: Request, _res: Response, next: NextFunction) 
  * managing user session data. The data is provided to the server by the
  * user's browser in its encrypted state.
  */
-export function storeUnlock (req: Request, key: string, password: string) {
+export function storeUnlock(req: Request, key: string, password: string) {
   if (!req.session) return
-  req.session[key] = encrypt(JSON.stringify({
-    password,
-    expires: dayjs().add(1, 'hour').format()
-  }))
+  req.session[key] = encrypt(
+    JSON.stringify({
+      password,
+      expires: dayjs().add(1, 'hour').format()
+    })
+  )
 }
 
 /**
@@ -82,9 +86,10 @@ export function storeUnlock (req: Request, key: string, password: string) {
  * Only a share-shaped key and a string password are stored; anything else is
  * ignored, so a stray object never reaches the cookie or the Immich login.
  */
-export function unlockHandler (req: Request, res: Response) {
+export function unlockHandler(req: Request, res: Response) {
   const { key, password } = req.body ?? {}
-  if (typeof key === 'string' && isKey(key) && typeof password === 'string') storeUnlock(req, key, password)
+  if (typeof key === 'string' && isKey(key) && typeof password === 'string')
+    storeUnlock(req, key, password)
   res.send()
 }
 
@@ -93,7 +98,7 @@ export function unlockHandler (req: Request, res: Response) {
  * the session entry, so the page doesn't keep saying "Invalid password". The
  * caller still renders the password page.
  */
-export function invalidPasswordResponse (req: Request, res: Response, key: string) {
+export function invalidPasswordResponse(req: Request, res: Response, key: string) {
   log('Invalid password for key ' + key)
   res.status(401)
   if (req.session) delete req.session[key]

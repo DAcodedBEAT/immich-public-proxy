@@ -10,24 +10,36 @@ import { Gallery, GalleryProps, GalleryItem } from '../src/view/gallery'
   them must not be able to terminate that block and inject markup.
 */
 
-function galleryProps (item: Partial<GalleryItem>): GalleryProps {
+function galleryProps(item: Partial<GalleryItem>): GalleryProps {
   return {
-    items: [{
-      id: 'a',
-      type: 'IMAGE',
-      previewUrl: '/share/photo/k/a/preview',
-      thumbnailUrl: '/share/photo/k/a/thumbnail',
-      downloadFilename: 'photo.jpg',
-      ...item
-    }],
+    items: [
+      {
+        id: 'a',
+        type: 'IMAGE',
+        previewUrl: '/share/photo/k/a/preview',
+        thumbnailUrl: '/share/photo/k/a/thumbnail',
+        downloadFilename: 'photo.jpg',
+        ...item
+      }
+    ],
     title: 'Test gallery',
     description: '',
     publicBaseUrl: 'https://example.com',
     path: '/share/k',
     showDownloadZip: false,
     showTitle: false,
-    lightboxConfig: { showArrows: true, showDownload: true, mobileArrows: false, autoPlayVideos: false },
-    metadataConfig: { descriptionInCaption: false, descriptionInSidebar: false, sidebarHasContent: false, locationWebLink: false },
+    lightboxConfig: {
+      showArrows: true,
+      showDownload: true,
+      mobileArrows: false,
+      autoPlayVideos: false
+    },
+    metadataConfig: {
+      descriptionInCaption: false,
+      descriptionInSidebar: false,
+      sidebarHasContent: false,
+      locationWebLink: false
+    },
     groupByDate: false
   }
 }
@@ -35,7 +47,7 @@ function galleryProps (item: Partial<GalleryItem>): GalleryProps {
 const payload = '</script><script>alert(1)</script>'
 
 /** Render a gallery and parse back the `#ipp-init` JSON block the client reads. */
-function initParams (props: GalleryProps) {
+function initParams(props: GalleryProps) {
   const html = renderPage(h(Gallery, props))
   const match = html.match(/<script type="application\/json" id="ipp-init">(.*?)<\/script>/s)
   if (!match) throw new Error('No init JSON block in the rendered gallery')
@@ -50,10 +62,15 @@ describe('gallery init JSON escaping', () => {
   })
 
   it('neutralises </script> in crafted EXIF metadata', () => {
-    const html = renderPage(h(Gallery, galleryProps({
-      description: payload,
-      exif: { fileName: payload, city: payload, make: payload }
-    })))
+    const html = renderPage(
+      h(
+        Gallery,
+        galleryProps({
+          description: payload,
+          exif: { fileName: payload, city: payload, make: payload }
+        })
+      )
+    )
     expect(html).not.toContain('<script>alert(1)</script>')
   })
 

@@ -10,7 +10,10 @@ import { resolveShare, resolveSharedAsset } from '../src/resolveShare'
   photo route redirects to the unlock page and the others answer 401), never
   as a generic 404, and never with the share's link or assets.
 */
-const lookup = vi.hoisted(() => ({ result: { valid: false } as SharedLinkResult, password: undefined as string | undefined }))
+const lookup = vi.hoisted(() => ({
+  result: { valid: false } as SharedLinkResult,
+  password: undefined as string | undefined
+}))
 vi.mock('../src/immich', () => ({
   getShareByKey: async (_key: string, password?: string) => {
     lookup.password = password
@@ -29,8 +32,12 @@ const link: SharedLink = {
   expiresAt: null
 }
 
-function request (password?: string): Request {
-  return { params: { key: KEY, id: ID }, path: '/share/photo/' + KEY + '/' + ID, password } as unknown as Request
+function request(password?: string): Request {
+  return {
+    params: { key: KEY, id: ID },
+    path: '/share/photo/' + KEY + '/' + ID,
+    password
+  } as unknown as Request
 }
 
 beforeEach(() => {
@@ -41,7 +48,12 @@ describe('resolveShare', () => {
   it('reports a locked share as password required, without its link', async () => {
     lookup.result = { valid: true, passwordRequired: true }
     const resolved = await resolveShare(request(), KeyType.key)
-    expect(resolved).toEqual({ ok: false, status: 401, reason: 'Password required', passwordRequired: true })
+    expect(resolved).toEqual({
+      ok: false,
+      status: 401,
+      reason: 'Password required',
+      passwordRequired: true
+    })
   })
 
   it('reports a locked share as password required for an asset too', async () => {
