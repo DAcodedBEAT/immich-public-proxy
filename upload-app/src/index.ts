@@ -36,6 +36,7 @@ import {
   sessionMiddleware,
   SharedLink,
   slugLinksDisabled,
+  startImmichHealthMonitor,
   title,
   trustProxyHops,
   trustProxyWarning,
@@ -268,6 +269,7 @@ const server = app.listen(port, () => {
   const proxyWarning = trustProxyWarning(trustProxyHops())
   if (proxyWarning) log.warn(proxyWarning)
   enforceMinimumImmichVersion().catch(() => {})
+  startImmichHealthMonitor()
 })
 /*
   A large video on a phone uplink outlasts any whole-request limit; the body

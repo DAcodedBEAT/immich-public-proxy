@@ -146,6 +146,16 @@ Where the optional upload service (the `immich-public-proxy-upload` container) i
 - **An absolute URL**, such as `https://upload.example.com`, means the service has a hostname of its own. It is trusted without a check. The URL may include a path, such as `https://photos.example.com/upload`, which points at the same place as the default but without the check.
 - **An empty string** never shows the button.
 
+## `shareResolutionConcurrency`
+
+**Type:** `int` · **Default:** `30`
+
+The most share lookups sent to Immich at once, across all visitors. Only a share's first view in each two-minute cache window needs a lookup; repeat views are served from the cache and never wait on this limit.
+
+A request for a key that does not exist is never cached, so without a limit a burst of made-up keys, from probing or the background noise every public address gets, could send any number of requests to Immich at once. Raise it only if you expect many visitors to open *different* shares within the same few seconds. The smallest value is `1`.
+
+The upload service reads the same key, with the same default, for its own lookups.
+
 ## `gallery`
 
 **Type:** `object`
