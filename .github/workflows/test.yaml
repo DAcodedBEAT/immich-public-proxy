@@ -1,12 +1,29 @@
 name: Build, test, and lint
 
 on:
+  # Pushes to branches without a PR, and release tags; a PR from a branch in
+  # this repo is covered by `pull_request` alone, so other branches don't run twice.
   push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'improvements/**'
+    tags:
+      - 'v*'
   pull_request:
+  # ci.yaml runs this as the gate before publishing an image
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The minimum supported version (engines.node) and the current LTS
+        node-version: ['22.12', 'lts/*']
 
     steps:
       - name: Checkout repository
@@ -15,7 +32,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -26,6 +43,13 @@ jobs:
       # exactly how a prior qs CVE (via express/body-parser) sat unnoticed.
       - name: Audit dependencies
         run: npm audit --audit-level=moderate
+
+      # The docs site's own lockfile. Its dependencies are all dev-only (the
+      # site is built to static files), so this only catches a runtime one
+      # added later; the dev-only vite/esbuild advisory needs VitePress 2.
+      - name: Audit docs dependencies
+        working-directory: docs
+        run: npm audit --omit=dev --audit-level=moderate
 
       - name: Build
         run: npm run build
