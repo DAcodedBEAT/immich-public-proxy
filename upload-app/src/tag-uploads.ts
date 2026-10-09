@@ -77,7 +77,7 @@ export interface TagSummary {
 }
 
 /** A failed Immich call, with a message fit for the owner. */
-export class ImmichError extends Error {}
+class ImmichError extends Error {}
 
 /** One JSON call to the Immich API, authenticated with the owner's key. */
 async function immich<T>(apiKey: string, method: string, path: string, body?: unknown): Promise<T> {

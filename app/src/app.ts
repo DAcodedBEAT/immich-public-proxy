@@ -24,7 +24,8 @@ import {
   trustProxyHops,
   unlockHandler
 } from '@ipp/core'
-import { fetchAssetDetail, handleShareRequest } from './immich'
+import { handleShareRequest } from './immich'
+import { fetchAssetDetail } from './immich/assets'
 import { resolveShare, resolveSharedAsset } from './resolveShare'
 import { buildAssetMetadata } from './gallery/metadata'
 import { assetBuffer } from './stream/asset'
