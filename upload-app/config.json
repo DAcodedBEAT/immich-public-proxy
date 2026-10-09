@@ -1,6 +1,7 @@
 {
   "ipp": {
     "allowSlugLinks": true,
+    "shareResolutionConcurrency": 30,
     "customInvalidResponse": false,
     "upload": {
       "maxFileSize": 500,
