@@ -15,8 +15,8 @@ import { resolve } from 'path'
 import { h } from 'preact'
 import {
   addNoStoreHeaders,
-  asyncHandler,
   banlistMiddleware,
+  constrainParam,
   CORE_PUBLIC_DIR,
   decodeCookie,
   enforceMinimumImmichVersion,
@@ -34,6 +34,7 @@ import {
   renderPage,
   respondToInvalidRequest,
   sessionMiddleware,
+  SHARE_TYPES,
   SharedLink,
   slugLinksDisabled,
   startImmichHealthMonitor,
@@ -43,6 +44,9 @@ import {
   unlockHandler
 } from '@ipp/core'
 import { galleryUrl, maxFileSize } from './config'
+
+const isShareType = (segment: string) =>
+  (SHARE_TYPES as readonly string[]).includes(segment.toLowerCase())
 import { uploadAllowed } from './gate'
 import { createUploadReceiver } from './receive'
 import { getShare } from './share'
@@ -108,10 +112,25 @@ app.get(
     addNoStoreHeaders(res)
     next()
   },
-  asyncHandler(healthcheck)
+  healthcheck
 )
 
 const router = Router()
+// Express 5 dropped inline regex in route params; a mismatch skips the route
+constrainParam(router, 'shareType', SHARE_TYPES)
+
+/*
+  A path of two or more segments must start with a share type, for every
+  method. The param constraint alone is not enough: Express 5 answers an
+  OPTIONS request itself, with 200 and an Allow header, for any route whose
+  path matched before its params were checked, so `OPTIONS /x/<key>` would
+  skip the 404 policy. Leaving the router here reaches the catch-all below.
+*/
+router.use((req, _res, next) => {
+  const segments = req.path.split('/')
+  const known = segments.length < 3 || isShareType(segments[1])
+  next(known ? undefined : 'router')
+})
 
 for (const dir of ['public', CORE_PUBLIC_DIR]) {
   router.use(
@@ -134,14 +153,16 @@ router.use(sessionMiddleware({ name: 'upload-session' }))
   [ROUTE] Healthcheck under the mount prefix. Before the share routes, which
   would otherwise read "healthcheck" as a key
 */
-router.get(['/healthcheck', '/share/healthcheck'], asyncHandler(healthcheck))
+router.get(['/healthcheck', '/share/healthcheck'], healthcheck)
 
 type ShareResolution =
   | { ok: true; link: SharedLink; keyType: KeyType }
   | { ok: false; reason: string; passwordRequired?: boolean }
 
 /** Validate the share in the URL against Immich, with the password from the session cookie. */
-async function resolveShare(req: Request): Promise<ShareResolution> {
+async function resolveShare(
+  req: Request<{ shareType: string; key: string }>
+): Promise<ShareResolution> {
   const keyType = getKeyTypeFromShare(req.params.shareType)
   if (slugLinksDisabled(keyType))
     return { ok: false, reason: 'Slug links are disabled in config.json' }
@@ -156,49 +177,46 @@ async function resolveShare(req: Request): Promise<ShareResolution> {
 /*
   [ROUTE] Upload page, or the password page for a locked share
 */
-router.get(
-  '/:shareType(share|s)/:key',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    const key = req.params.key
-    const resolved = await resolveShare(req)
-    if (!resolved.ok && resolved.passwordRequired) {
-      if (req.password) invalidPasswordResponse(req, res, key)
-      res.send(
-        renderPage(
-          h(Password, {
-            shareKey: key,
-            notifyInvalidPassword: !!req.password,
-            basePath: req.baseUrl
-          })
-        )
-      )
-      return
-    }
-    if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
-      respondToInvalidRequest(
-        res,
-        404,
-        resolved.ok ? 'Share does not accept uploads' : resolved.reason
-      )
-      return
-    }
-    const gallery = galleryUrl()
+router.get('/:shareType/:key', decodeCookie, async (req, res) => {
+  const key = req.params.key
+  const resolved = await resolveShare(req)
+  if (!resolved.ok && resolved.passwordRequired) {
+    if (req.password) invalidPasswordResponse(req, res, key)
     res.send(
       renderPage(
-        h(UploadPage, {
-          config: {
-            uploadUrl: `${req.baseUrl}/${req.params.shareType}/${encodeURIComponent(key)}/upload`,
-            maxFileSize: maxFileSize(),
-            title: title(resolved.link)
-          },
-          basePath: req.baseUrl,
-          galleryLink: gallery && `${gallery}/${req.params.shareType}/${encodeURIComponent(key)}`
+        h(Password, {
+          shareKey: key,
+          notifyInvalidPassword: !!req.password,
+          basePath: req.baseUrl
         })
       )
     )
-  })
-)
+    return
+  }
+  if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
+    respondToInvalidRequest(
+      res,
+      404,
+      resolved.ok ? 'Share does not accept uploads' : resolved.reason
+    )
+    return
+  }
+  const gallery = galleryUrl()
+  const shareType = req.params.shareType.toLowerCase()
+  res.send(
+    renderPage(
+      h(UploadPage, {
+        config: {
+          uploadUrl: `${req.baseUrl}/${shareType}/${encodeURIComponent(key)}/upload`,
+          maxFileSize: maxFileSize(),
+          title: title(resolved.link)
+        },
+        basePath: req.baseUrl,
+        galleryLink: gallery && `${gallery}/${shareType}/${encodeURIComponent(key)}`
+      })
+    )
+  )
+})
 
 /*
   [ROUTE] Password unlock from the password page
@@ -208,18 +226,14 @@ router.post('/share/unlock', bodyDeadline(10_000), express.json({ limit: '10kb' 
 /*
   [ROUTE] One file from a visitor, streamed to Immich
 */
-router.post(
-  '/:shareType(share|s)/:key/upload',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    const resolved = await resolveShare(req)
-    if (!resolved.ok) {
-      respondToInvalidRequest(res, 404, resolved.reason)
-      return
-    }
-    await receiveUpload(req, res, resolved.link, resolved.keyType)
-  })
-)
+router.post('/:shareType/:key/upload', decodeCookie, async (req, res) => {
+  const resolved = await resolveShare(req)
+  if (!resolved.ok) {
+    respondToInvalidRequest(res, 404, resolved.reason)
+    return
+  }
+  await receiveUpload(req, res, resolved.link, resolved.keyType)
+})
 
 /*
   The same routes under `/upload` and at the root, so either reverse proxy
@@ -233,7 +247,7 @@ app.use('/', router)
 /*
   [ROUTE] Everything else, including `/`, gets the 404 policy
 */
-app.all('*', (req, res) => {
+app.all('/{*splat}', (req, res) => {
   addNoStoreHeaders(res)
   respondToInvalidRequest(res, 404, 'Invalid route ' + req.path)
 })

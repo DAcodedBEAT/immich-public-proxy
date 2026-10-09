@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express-serve-static-core'
+import { IRouter, Request, Response } from 'express-serve-static-core'
 import { resolve } from 'path'
 import { getConfigOption } from './config/access'
 import { accessible } from './immich/client'
@@ -49,14 +49,23 @@ export async function healthcheck(_req: Request, res: Response): Promise<void> {
   }
 }
 
+/** The URL segments that open a share: `share` for a key, `s` for a slug. */
+export const SHARE_TYPES = ['share', 's'] as const
+
 /**
- * Wrap an async route handler so a rejected promise is passed to Express's
- * error chain (and on to `errorHandler`).
+ * Restrict a route param to a fixed set of lower-case values, matched
+ * case-insensitively like the rest of the path (and like the Express 4 inline
+ * regex this replaces, `/:shareType(share|s)`). A mismatch skips the route,
+ * falling through to later routes and the 404 handler; handlers lower-case
+ * the param before using it. Params are local to the app or Router they are
+ * registered on.
  */
-export function asyncHandler(
-  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
-) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    fn(req, res, next).catch(next)
-  }
+export function constrainParam(
+  router: Pick<IRouter, 'param'>,
+  name: string,
+  allowed: readonly string[]
+): void {
+  router.param(name, (_req, _res, next, value) =>
+    next(allowed.includes(String(value).toLowerCase()) ? undefined : 'route')
+  )
 }

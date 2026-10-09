@@ -77,7 +77,7 @@ export function createUploadReceiver() {
   const prefix = filenamePrefix()
 
   return async function receiveUpload(
-    req: Request,
+    req: Request<{ key: string }>,
     res: Response,
     link: SharedLink,
     keyType: KeyType
