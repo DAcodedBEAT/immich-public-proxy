@@ -32,7 +32,7 @@ The repo is an npm workspace with three packages: `shared/` is `@ipp/core`, the 
 
 ```
 .github/workflows/        test.yaml runs audit, build, test and lint on every push/PR; ci.yaml builds and pushes both Docker images on v* tags; docs.yaml deploys the docs site
-package.json              Workspace root: scripts that delegate to the workspaces; no dependencies
+package.json              Workspace root: scripts that delegate to the workspaces, the lint tooling and the qs override
 package-lock.json         The one lockfile for every workspace
 .oxlintrc.json            Lint config (oxlint) for every workspace
 .oxfmtrc.json             Formatter config (oxfmt) for every workspace

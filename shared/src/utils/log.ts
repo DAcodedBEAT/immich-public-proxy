@@ -1,4 +1,4 @@
-import dayjs from 'dayjs'
+import { localTimestamp } from './dateFormat'
 
 /**
  * Output a timestamped log message. Calling `log(...)` is equivalent to
@@ -8,7 +8,7 @@ import dayjs from 'dayjs'
  *   log.warn('...')   non-fatal anomaly, goes to stderr with WARN prefix
  *   log.error('...')  failure / unexpected error, goes to stderr with ERROR prefix
  */
-const timestamp = () => dayjs().format()
+const timestamp = () => localTimestamp()
 
 type LogFn = ((message: string) => void) & {
   info: (message: string) => void

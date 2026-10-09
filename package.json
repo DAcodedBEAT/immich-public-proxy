@@ -18,5 +18,8 @@
   "devDependencies": {
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }
