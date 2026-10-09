@@ -1,10 +1,17 @@
 #!/usr/bin/env node
 
-import 'dotenv/config'
+// Load .env into process.env, same as `dotenv/config` did - but env vars are
+// normally supplied by docker-compose, not a file, so a missing .env (the
+// common case) must stay a silent no-op rather than a startup crash.
+try {
+  process.loadEnvFile()
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+}
+
 import express, { RequestHandler, Router } from 'express'
 import { Request } from 'express-serve-static-core'
 import { resolve } from 'path'
-import dayjs from 'dayjs'
 import { h } from 'preact'
 import {
   addNoStoreHeaders,
@@ -19,6 +26,7 @@ import {
   isKey,
   KeyType,
   loadConfig,
+  localTimestamp,
   Password,
   renderPage,
   respondToInvalidRequest,
@@ -229,7 +237,7 @@ process.on('SIGTERM', () => {
 
 const port = Number(process.env.IPP_PORT) || 3000
 const server = app.listen(port, () => {
-  console.log(dayjs().format() + ' Upload service started on port ' + port)
+  console.log(localTimestamp() + ' Upload service started on port ' + port)
   enforceMinimumImmichVersion().catch(() => {})
 })
 /*

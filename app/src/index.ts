@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 
-import 'dotenv/config'
+// Load .env into process.env, same as `dotenv/config` did - but env vars are
+// normally supplied by docker-compose, not a file, so a missing .env (the
+// common case) must stay a silent no-op rather than a startup crash.
+try {
+  process.loadEnvFile()
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+}
+
 import express from 'express'
 import { resolve } from 'path'
 import {
@@ -18,6 +26,7 @@ import {
   healthcheck,
   KeyType,
   loadConfig,
+  localTimestamp,
   renderPage,
   respondToInvalidRequest,
   sessionMiddleware,
@@ -31,7 +40,6 @@ import { buildAssetMetadata } from './gallery/metadata'
 import { removedMetadataSwitches } from './gallery/exif'
 import { assetBuffer } from './stream/asset'
 import { downloadAssets } from './stream/download'
-import dayjs from 'dayjs'
 import { ImageSize } from './types'
 import { canDownload, uploadHealthcheck } from './share'
 import { respondToInvalidRequest as ippInvalidRequestHandler } from './invalidRequestHandler'
@@ -49,7 +57,7 @@ loadConfig({ defaultPath: resolve(__dirname, '../config.json') })
 const removedSwitches = removedMetadataSwitches()
 if (removedSwitches.length) {
   console.error(
-    dayjs().format() +
+    localTimestamp() +
       ' FATAL: The config has ' +
       removedSwitches.join(' and ') +
       ', which IPP no longer reads. Every per-field flag set to true in that group would now be shown to visitors. ' +
@@ -323,6 +331,6 @@ process.on('SIGTERM', () => {
 
 const port = Number(process.env.IPP_PORT) || 3000
 const server = app.listen(port, () => {
-  console.log(dayjs().format() + ' Server started on port ' + port)
+  console.log(localTimestamp() + ' Server started on port ' + port)
   enforceMinimumImmichVersion().catch(e => console.error('Immich version check failed:', e))
 })

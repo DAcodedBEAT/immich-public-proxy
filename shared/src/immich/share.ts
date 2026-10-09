@@ -1,7 +1,7 @@
-import dayjs from 'dayjs'
 import { KeyType, SharedLink, SharedLinkResult } from '../types'
 import { getConfigOption } from '../config/access'
 import { log } from '../utils/log'
+import { parseDate } from '../utils/dateFormat'
 import { cachedPromise, TtlLruCache } from '../utils/ttlLruCache'
 import { apiUrl, buildUrl } from './client'
 
@@ -57,7 +57,7 @@ export async function fetchSharedLink(
         const link = jsonBody as SharedLink
         link.keyType = keyType
         link.password = password
-        if (link.expiresAt && dayjs(link.expiresAt) < dayjs()) {
+        if (link.expiresAt && parseDate(link.expiresAt) < new Date()) {
           // This link has expired
           log('Expired link ' + key)
         } else {
