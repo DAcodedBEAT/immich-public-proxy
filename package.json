@@ -9,8 +9,13 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm test --workspaces && vitest run --root docs",
-    "lint": "eslint shared app upload-app --ext .ts,.tsx",
+    "lint": "oxlint && oxfmt --check",
+    "lint:fix": "oxlint --fix && oxfmt --write",
     "dev": "npm run dev --workspace=app",
     "bump": "npm version --no-git-tag-version --workspaces"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.72.0",
+    "oxlint": "^1.87.0"
   }
 }
