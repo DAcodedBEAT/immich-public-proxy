@@ -35,7 +35,7 @@ export interface LayoutResult {
  * bucketed by YYYY-MM and a header is reserved before each group.
  */
 export function computeLayout (containerW: number): LayoutResult {
-  const tileLayout: LayoutEntry[] = new Array(state.items.length)
+  const tileLayout: LayoutEntry[] = Array.from({ length: state.items.length })
   const newHeaders: HeaderEntry[] = []
   const groups: GroupSpec[] = state.groupByDate
     ? groupItemsByDate(state.groupByDate)
@@ -61,7 +61,7 @@ export function computeLayout (containerW: number): LayoutResult {
 }
 
 function itemIndices (): number[] {
-  const out = new Array(state.items.length)
+  const out = Array.from<number>({ length: state.items.length })
   for (let i = 0; i < state.items.length; i++) out[i] = i
   return out
 }

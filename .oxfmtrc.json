@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "arrowParens": "avoid",
+  "jsxSingleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "none",
+  "ignorePatterns": [
+    "**/dist/**",
+    "*/public/**",
+    "docs/**/*.md",
+    "docs/.vitepress/cache/**",
+    "docs/.vitepress/dist/**",
+    "*.md",
+    "package-lock.json",
+    "docs/package-lock.json"
+  ]
+}
