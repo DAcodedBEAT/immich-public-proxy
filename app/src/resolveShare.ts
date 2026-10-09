@@ -19,7 +19,10 @@ export type SharedAssetResolution =
   | { ok: true; link: SharedLink; asset: Asset }
   | { ok: false; status: number; reason: string; passwordRequired?: boolean }
 
-export async function resolveShare(req: Request, keyType: KeyType): Promise<ShareResolution> {
+export async function resolveShare(
+  req: Request<{ key: string }>,
+  keyType: KeyType
+): Promise<ShareResolution> {
   if (slugLinksDisabled(keyType)) {
     return { ok: false, status: 404, reason: 'Slug links are disabled in config.json' }
   }
@@ -41,7 +44,7 @@ export async function resolveShare(req: Request, keyType: KeyType): Promise<Shar
 }
 
 export async function resolveSharedAsset(
-  req: Request,
+  req: Request<{ key: string; id: string }>,
   keyType: KeyType,
   allowMotion = false
 ): Promise<SharedAssetResolution> {
