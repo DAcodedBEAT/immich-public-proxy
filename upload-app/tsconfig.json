@@ -1,25 +1,26 @@
 {
   "compilerOptions": {
-    "baseUrl": "src",
+    "rootDir": "src",
     "outDir": "dist",
     "inlineSourceMap": true,
     "inlineSources": true,
-    "module": "CommonJS",
-    "target": "ES6",
+    "module": "Node16",
+    "target": "ES2022",
     "allowJs": true,
     "noImplicitAny": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "importHelpers": true,
     "isolatedModules": true,
     "strictNullChecks": true,
-    "lib": ["DOM", "ES2021"],
+    "lib": ["DOM", "ES2022"],
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
+    "types": ["node", "cookie-session"],
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "dist", "tests", "vitest.config.ts", "src/client"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["src/client"],
   "references": [{ "path": "../shared" }]
 }

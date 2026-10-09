@@ -30,7 +30,7 @@ RUN rm -rf node_modules \
     && rm -rf node_modules/immich-public-proxy node_modules/immich-public-proxy-upload node_modules/.bin/immich-public-proxy* \
     && cp -rL node_modules /ipp/prod_modules \
     && cd /ipp/prod_modules/@ipp/core \
-    && rm -rf src tests tsconfig.json vitest.config.ts dist/tsconfig.tsbuildinfo \
+    && rm -rf src tests tsconfig.json vitest.config.mts dist/tsconfig.tsbuildinfo \
     && rm -f /ipp/upload-app/dist/tsconfig.tsbuildinfo
 
 FROM node:lts-alpine AS runner
