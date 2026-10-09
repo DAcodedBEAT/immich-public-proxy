@@ -16,8 +16,8 @@ import {
   addResponseHeaders,
   Asset,
   AssetType,
-  asyncHandler,
   banlistMiddleware,
+  constrainParam,
   CORE_PUBLIC_DIR,
   decodeCookie,
   enforceMinimumImmichVersion,
@@ -34,6 +34,7 @@ import {
   respondToInvalidRequest,
   sessionMiddleware,
   setInvalidRequestHandler,
+  SHARE_TYPES,
   slugLinksDisabled,
   startImmichHealthMonitor,
   trustProxyHops,
@@ -114,9 +115,17 @@ serveStatic('/')
 app.disable('x-powered-by')
 
 /*
+  Express 5 dropped inline regex in route params, so they are constrained
+  here: a mismatch skips the route, falling through to the 404 handler.
+*/
+constrainParam(app, 'shareType', SHARE_TYPES)
+constrainParam(app, 'mode', ['download'])
+constrainParam(app, 'type', ['photo', 'video'])
+
+/*
   [ROUTE] Healthcheck, on /share/healthcheck and the legacy /healthcheck
 */
-app.get(/^(|\/share)\/healthcheck$/, asyncHandler(healthcheck))
+app.get(/^(|\/share)\/healthcheck$/, healthcheck)
 
 /*
   [ROUTE] The upload service's healthcheck path, when the service is assumed
@@ -128,7 +137,8 @@ app.get(/^(|\/share)\/healthcheck$/, asyncHandler(healthcheck))
 */
 const uploadProbe = uploadHealthcheck()
 if (uploadProbe) {
-  app.get(uploadProbe, (_req, res) => {
+  // Escaped, so an operator's path is matched literally, not as route syntax
+  app.get(uploadProbe.replace(/[{}()[\]+?!:*\\]/g, '\\$&'), (_req, res) => {
     addNoStoreHeaders(res)
     res.status(204).end()
   })
@@ -137,28 +147,24 @@ if (uploadProbe) {
 /*
   [ROUTE] The main URL a visitor opens from a shared link
 */
-app.get(
-  '/:shareType(share|s)/:key/:mode(download)?',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    const keyType = getKeyTypeFromShare(req.params.shareType)
+app.get('/:shareType/:key{/:mode}', decodeCookie, async (req, res) => {
+  const keyType = getKeyTypeFromShare(req.params.shareType)
 
-    if (slugLinksDisabled(keyType)) {
-      respondToInvalidRequest(res, 404, 'Slug links are disabled in config.json')
-    } else {
-      await handleShareRequest(
-        {
-          req,
-          key: req.params.key,
-          keyType,
-          mode: req.params.mode,
-          password: req.password
-        },
-        res
-      )
-    }
-  })
-)
+  if (slugLinksDisabled(keyType)) {
+    respondToInvalidRequest(res, 404, 'Slug links are disabled in config.json')
+  } else {
+    await handleShareRequest(
+      {
+        req,
+        key: req.params.key,
+        keyType,
+        mode: req.params.mode?.toLowerCase(),
+        password: req.password
+      },
+      res
+    )
+  }
+})
 
 /*
   [ROUTE] Password unlock from the password page
@@ -171,104 +177,90 @@ app.post('/share/unlock', unlockHandler)
   Validates each ID against share.assets so the request can't pull anything
   outside the share.
 */
-app.post(
-  '/:shareType(share|s)/:key/download',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    const keyType = getKeyTypeFromShare(req.params.shareType)
-    let requestedIds: unknown
-    try {
-      requestedIds = JSON.parse(String(req.body?.assets ?? '[]'))
-    } catch (e) {
-      respondToInvalidRequest(res, 400, 'Malformed assets list')
-      return
-    }
-    if (!Array.isArray(requestedIds) || requestedIds.length === 0) {
-      respondToInvalidRequest(res, 400, 'No assets selected')
-      return
-    }
+app.post('/:shareType/:key/download', decodeCookie, async (req, res) => {
+  const keyType = getKeyTypeFromShare(req.params.shareType)
+  let requestedIds: unknown
+  try {
+    requestedIds = JSON.parse(String(req.body?.assets ?? '[]'))
+  } catch (e) {
+    respondToInvalidRequest(res, 400, 'Malformed assets list')
+    return
+  }
+  if (!Array.isArray(requestedIds) || requestedIds.length === 0) {
+    respondToInvalidRequest(res, 400, 'No assets selected')
+    return
+  }
 
-    const resolved = await resolveShare(req, keyType)
-    if (!resolved.ok) {
-      respondToInvalidRequest(res, resolved.status, resolved.reason)
-      return
-    }
-    if (!canDownload(resolved.link)) {
-      respondToInvalidRequest(res, 403, 'Downloads disabled for this share')
-      return
-    }
+  const resolved = await resolveShare(req, keyType)
+  if (!resolved.ok) {
+    respondToInvalidRequest(res, resolved.status, resolved.reason)
+    return
+  }
+  if (!canDownload(resolved.link)) {
+    respondToInvalidRequest(res, 403, 'Downloads disabled for this share')
+    return
+  }
 
-    const requested = new Set(requestedIds.map(String))
-    const validAssets = resolved.link.assets.filter(a => requested.has(a.id))
-    if (validAssets.length === 0) {
-      respondToInvalidRequest(res, 400, 'No valid assets in selection')
-      return
-    }
+  const requested = new Set(requestedIds.map(String))
+  const validAssets = resolved.link.assets.filter(a => requested.has(a.id))
+  if (validAssets.length === 0) {
+    respondToInvalidRequest(res, 400, 'No valid assets in selection')
+    return
+  }
 
-    await downloadAssets(res, resolved.link, validAssets)
-  })
-)
+  await downloadAssets(res, resolved.link, validAssets)
+})
 
 /*
   [ROUTE] Catch accidental POST requests to share URLs (e.g. from browser history
   state issues) and force a clean GET redirect.
   See https://github.com/alangrainger/immich-public-proxy/pull/205
 */
-app.post('/:shareType(share|s)/:key/:mode(download)?', (req, res) => {
+app.post('/:shareType/:key{/:mode}', (req, res) => {
   res.redirect(303, req.originalUrl)
 })
 
 /*
   [ROUTE] Direct link to a photo or video asset
 */
-app.get(
-  '/share/:type(photo|video)/:key/:id/:size?',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    addResponseHeaders(res)
+app.get('/share/:type/:key/:id{/:size}', decodeCookie, async (req, res) => {
+  addResponseHeaders(res)
 
-    if (req.params.size && !Object.values(ImageSize).includes(req.params.size as ImageSize)) {
-      respondToInvalidRequest(res, 404, 'Invalid size parameter ' + req.path)
+  if (req.params.size && !Object.values(ImageSize).includes(req.params.size as ImageSize)) {
+    respondToInvalidRequest(res, 404, 'Invalid size parameter ' + req.path)
+    return
+  }
+
+  const isVideo = req.params.type.toLowerCase() === 'video'
+  // Always key auth: this route has no slug form
+  const resolved = await resolveSharedAsset(req, KeyType.key, isVideo)
+  if (!resolved.ok) {
+    // Password-protected: redirect to the share page so the visitor gets the
+    // unlock prompt, rather than returning an error.
+    // isKey already limits the key to [\w-]+; encoding is a second guard
+    // in case that validation is ever loosened.
+    if (resolved.passwordRequired) {
+      // Not cached, or the visitor would keep being sent here after unlocking
+      addNoStoreHeaders(res)
+      res.redirect('/share/' + encodeURIComponent(req.params.key))
       return
     }
+    respondToInvalidRequest(res, resolved.status, resolved.reason)
+    return
+  }
+  if (resolved.link.password) addNoStoreHeaders(res)
+  const asset: Asset = {
+    ...resolved.asset,
+    type: isVideo ? AssetType.video : resolved.asset.type
+  }
 
-    // Always key auth: this route has no slug form
-    const resolved = await resolveSharedAsset(req, KeyType.key, req.params.type === 'video')
-    if (!resolved.ok) {
-      // Password-protected: redirect to the share page so the visitor gets the
-      // unlock prompt, rather than returning an error.
-      // isKey already limits the key to [\w-]+; encoding is a second guard
-      // in case that validation is ever loosened.
-      if (resolved.passwordRequired) {
-        // Not cached, or the visitor would keep being sent here after unlocking
-        addNoStoreHeaders(res)
-        res.redirect('/share/' + encodeURIComponent(req.params.key))
-        return
-      }
-      respondToInvalidRequest(res, resolved.status, resolved.reason)
-      return
-    }
-    if (resolved.link.password) addNoStoreHeaders(res)
-    const asset: Asset = {
-      ...resolved.asset,
-      type: req.params.type === 'video' ? AssetType.video : resolved.asset.type
-    }
-
-    const request = {
-      req,
-      key: req.params.key,
-      range: req.headers.range || ''
-    }
-    await assetBuffer(
-      request,
-      res,
-      asset,
-      req.params.size,
-      resolved.link,
-      req.params.type === 'video'
-    )
-  })
-)
+  const request = {
+    req,
+    key: req.params.key,
+    range: req.headers.range || ''
+  }
+  await assetBuffer(request, res, asset, req.params.size, resolved.link, isVideo)
+})
 
 /*
   [ROUTE] On-demand per-asset metadata for lazy album items.
@@ -279,30 +271,26 @@ app.get(
   validated against the share's asset set (defence in depth - Immich also
   enforces this via the share key) before we fetch `GET /assets/:id`.
 */
-app.get(
-  '/:shareType(share|s)/meta/:key/:id',
-  decodeCookie,
-  asyncHandler(async (req, res) => {
-    addResponseHeaders(res)
+app.get('/:shareType/meta/:key/:id', decodeCookie, async (req, res) => {
+  addResponseHeaders(res)
 
-    const resolved = await resolveSharedAsset(req, getKeyTypeFromShare(req.params.shareType))
-    if (!resolved.ok) {
-      if (resolved.passwordRequired) addNoStoreHeaders(res)
-      respondToInvalidRequest(res, resolved.status, resolved.reason)
-      return
-    }
+  const resolved = await resolveSharedAsset(req, getKeyTypeFromShare(req.params.shareType))
+  if (!resolved.ok) {
+    if (resolved.passwordRequired) addNoStoreHeaders(res)
+    respondToInvalidRequest(res, resolved.status, resolved.reason)
+    return
+  }
 
-    if (resolved.link.password) addNoStoreHeaders(res)
+  if (resolved.link.password) addNoStoreHeaders(res)
 
-    const detail = await fetchAssetDetail(resolved.asset)
-    if (!detail) {
-      respondToInvalidRequest(res, 404, 'Asset detail unavailable for ' + req.params.id)
-      return
-    }
+  const detail = await fetchAssetDetail(resolved.asset)
+  if (!detail) {
+    respondToInvalidRequest(res, 404, 'Asset detail unavailable for ' + req.params.id)
+    return
+  }
 
-    res.json(buildAssetMetadata(detail, resolved.link))
-  })
-)
+  res.json(buildAssetMetadata(detail, resolved.link))
+})
 
 /*
   [ROUTE] Home page, so the root shows *something*, as requested in
@@ -320,7 +308,7 @@ if (getConfigOption('ipp.showHomePage', true)) {
   [ROUTE] Send a 404 for all other routes and methods. `all`, so a POST or DELETE to an
   unknown path gets the same policy instead of Express's own HTML error page.
 */
-app.all('*', (req, res) => {
+app.all('/{*splat}', (req, res) => {
   respondToInvalidRequest(res, 404, 'Invalid route ' + req.path)
 })
 
@@ -333,7 +321,7 @@ process.on('uncaughtException', err => {
   process.exit(1)
 })
 /*
-  Log only: with asyncHandler routing request errors into errorHandler, a
+  Log only: with Express 5 routing request errors into errorHandler, a
   stray rejection from a background task (the version check, etc.) is not
   worth killing every in-flight request for.
 */
