@@ -16,7 +16,7 @@ function asset(overrides: Partial<Asset> = {}): Asset {
 
 describe('servableAssets', () => {
   it('keeps a processed, visible asset', () => {
-    expect(servableAssets([asset()])).toHaveLength(1)
+    expect(servableAssets([asset({ visibility: AssetVisibility.timeline })])).toHaveLength(1)
   })
 
   it('drops a locked asset even when Immich lists it', () => {

@@ -11,10 +11,12 @@
     "test": "npm test --workspaces && vitest run --root docs",
     "lint": "oxlint --deny-warnings && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
+    "analyze": "fallow dead-code",
     "dev": "npm run dev --workspace=app",
     "bump": "npm version --no-git-tag-version --workspaces"
   },
   "devDependencies": {
+    "fallow": "^3.32.0",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0"
   },
