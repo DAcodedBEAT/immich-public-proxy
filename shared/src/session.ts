@@ -5,6 +5,7 @@ import { decrypt, encrypt } from './encrypt'
 import { isKey } from './immich/client'
 import { localTimestamp, parseDate } from './utils/dateFormat'
 import { log } from './utils/log'
+import { logAbuse } from './utils/abuseLog'
 import { toString } from './utils/text'
 
 // Extend the Request type with a `password` property
@@ -28,7 +29,11 @@ export interface SessionOptions {
 
 /**
  * Cookie-session middleware holding the encrypted share passwords. The
- * signing secret is random per process, so a restart signs every visitor out.
+ * signing secret, and the key encrypting the passwords (see `encrypt.ts`),
+ * are random per process unless `IPP_SESSION_SECRET` is set, so by default a
+ * restart signs every visitor out. Replicas behind a load
+ * balancer without sticky sessions need the same `IPP_SESSION_SECRET`, or a
+ * cookie signed by one can't be verified by another.
  */
 export function sessionMiddleware({ name, path = '/' }: SessionOptions) {
   return cookieSession({
@@ -36,7 +41,7 @@ export function sessionMiddleware({ name, path = '/' }: SessionOptions) {
     path,
     httpOnly: true,
     sameSite: 'lax',
-    secret: crypto.randomBytes(32).toString('base64url')
+    secret: process.env.IPP_SESSION_SECRET || crypto.randomBytes(32).toString('base64url')
   })
 }
 
@@ -100,6 +105,7 @@ export function unlockHandler(req: Request, res: Response) {
  */
 export function invalidPasswordResponse(req: Request, res: Response, key: string) {
   log('Invalid password for key ' + key)
+  logAbuse('invalid-password', req, `key=${key.slice(0, 8)}`)
   res.status(401)
   if (req.session) delete req.session[key]
 }

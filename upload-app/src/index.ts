@@ -16,10 +16,12 @@ import { h } from 'preact'
 import {
   addNoStoreHeaders,
   asyncHandler,
+  banlistMiddleware,
   CORE_PUBLIC_DIR,
   decodeCookie,
   enforceMinimumImmichVersion,
   errorHandler,
+  formatStartupSummary,
   getKeyTypeFromShare,
   healthcheckHandler,
   invalidPasswordResponse,
@@ -27,6 +29,7 @@ import {
   KeyType,
   loadConfig,
   localTimestamp,
+  log,
   Password,
   renderPage,
   respondToInvalidRequest,
@@ -34,6 +37,8 @@ import {
   SharedLink,
   slugLinksDisabled,
   title,
+  trustProxyHops,
+  trustProxyWarning,
   unlockHandler
 } from '@ipp/core'
 import { askName, galleryUrl, maxFileSize, uploadNotice } from './config'
@@ -61,13 +66,23 @@ app.disable('x-powered-by')
   so nothing else stops a sender trickling a body to a route that has already
   answered. A request that carries a body closes its connection once the
   response is sent, read or not. Each upload is its own request, so no
-  visitor loses a connection worth keeping.
+  visitor loses a connection worth keeping. First, so no response skips it.
 */
 app.use((req, res, next) => {
   if (req.headers['content-length'] || req.headers['transfer-encoding'])
     res.set('Connection', 'close')
   next()
 })
+
+/*
+  Trust the client IP forwarded by exactly IPP_TRUST_PROXY proxy hops, so
+  req.ip (and so the rate limit) is the visitor rather than the proxy, then
+  reject banned IPs before anything else. Both are no-ops unless their env
+  var is set. A ban always closes the connection, body or not.
+*/
+const proxyHops = trustProxyHops()
+if (proxyHops > 0) app.set('trust proxy', proxyHops)
+app.use(banlistMiddleware)
 
 /**
  * Drop a request that has no response within `ms`. For a route that reads
@@ -238,6 +253,17 @@ process.on('SIGTERM', () => {
 const port = Number(process.env.IPP_PORT) || 3000
 const server = app.listen(port, () => {
   console.log(localTimestamp() + ' Upload service started on port ' + port)
+  console.log(
+    localTimestamp() +
+      ' ' +
+      formatStartupSummary({
+        trustProxyHops: proxyHops,
+        banlistPath: process.env.IPP_BANLIST_PATH,
+        publicBaseUrl: process.env.PUBLIC_BASE_URL
+      })
+  )
+  const proxyWarning = trustProxyWarning(trustProxyHops())
+  if (proxyWarning) log.warn(proxyWarning)
   enforceMinimumImmichVersion().catch(() => {})
 })
 /*

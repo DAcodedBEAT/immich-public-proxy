@@ -5,9 +5,30 @@ interface EncryptedPayload {
   cr: string // Encrypted data
 }
 
-// Generate a random 256-bit key on startup
-const key = crypto.randomBytes(32)
 const algorithm = 'aes-256-cbc'
+
+// Distinct from the cookie-signing use of the same secret, so the two keys never share bytes
+const KEY_INFO = 'ipp session payload aes-256-cbc v1'
+
+// Used when IPP_SESSION_SECRET is unset: random per process, so a restart signs everyone out
+const randomKey = crypto.randomBytes(32)
+let derived: { secret: string; key: Buffer } | undefined
+
+/**
+ * The AES key for the session payload. Derived from `IPP_SESSION_SECRET` with
+ * HKDF when it is set, so every process sharing the secret can read a cookie
+ * another one wrote; otherwise random per process. Read lazily, so the env
+ * var only has to be set before the first cookie is handled.
+ */
+function payloadKey(): Buffer {
+  const secret = process.env.IPP_SESSION_SECRET
+  if (!secret) return randomKey
+  if (derived?.secret !== secret) {
+    const key = Buffer.from(crypto.hkdfSync('sha256', secret, Buffer.alloc(0), KEY_INFO, 32))
+    derived = { secret, key }
+  }
+  return derived.key
+}
 
 /**
  * Encrypt text data for storing in the session cookie
@@ -15,7 +36,7 @@ const algorithm = 'aes-256-cbc'
 export function encrypt(text: string): EncryptedPayload {
   try {
     const ivBuf = crypto.randomBytes(16)
-    const cipher = crypto.createCipheriv(algorithm, Buffer.from(key), ivBuf)
+    const cipher = crypto.createCipheriv(algorithm, payloadKey(), ivBuf)
     let encrypted = cipher.update(text, 'utf8', 'hex')
     encrypted += cipher.final('hex')
     return {
@@ -37,7 +58,7 @@ export function decrypt(payload: EncryptedPayload): string {
   try {
     const decipher = crypto.createDecipheriv(
       algorithm,
-      Buffer.from(key),
+      payloadKey(),
       Buffer.from(payload.iv, 'hex')
     )
     let decrypted = decipher.update(payload.cr, 'hex', 'utf8')
