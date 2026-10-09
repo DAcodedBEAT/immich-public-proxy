@@ -14,18 +14,30 @@ const share: SharedLink = {
   key: 'share-key',
   keyType: KeyType.key,
   type: 'INDIVIDUAL',
-  assets: [{ id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', key: 'share-key', keyType: KeyType.key, type: AssetType.image, isTrashed: false }],
+  assets: [
+    {
+      id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      key: 'share-key',
+      keyType: KeyType.key,
+      type: AssetType.image,
+      isTrashed: false
+    }
+  ],
   expiresAt: null
 }
 
-async function render (host: string | undefined) {
+async function render(host: string | undefined) {
   let html = ''
   const vary: string[] = []
   const res = {
     req: { protocol: 'https', headers: { host } },
     header: () => {},
-    vary: (field: string) => { vary.push(field) },
-    send: (body: string) => { html = body }
+    vary: (field: string) => {
+      vary.push(field)
+    },
+    send: (body: string) => {
+      html = body
+    }
   } as unknown as Response
   await gallery(res, share)
   const ogImage = html.match(/<meta property="og:image" content="([^"]*)"/)?.[1]

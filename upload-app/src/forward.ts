@@ -20,8 +20,8 @@ export interface IncomingUpload {
 }
 
 export type ForwardResult =
-  | { ok: true, status: 'created' | 'duplicate', id: string, bytes: number }
-  | { ok: false, status: number, reason: string }
+  | { ok: true; status: 'created' | 'duplicate'; id: string; bytes: number }
+  | { ok: false; status: number; reason: string }
 
 export const NOT_ACCEPTING_UPLOADS = 'This share does not accept uploads'
 
@@ -38,21 +38,25 @@ class UploadTooLargeError extends Error {}
  * `sidecarData`) cannot be set by a visitor. The filename rides on the
  * part's own Content-Disposition, which is where Immich reads it from.
  */
-function multipartBody (boundary: string, upload: IncomingUpload, counter: { bytes: number }): Readable {
+function multipartBody(
+  boundary: string,
+  upload: IncomingUpload,
+  counter: { bytes: number }
+): Readable {
   const fields: Record<string, string> = {
     fileCreatedAt: upload.fileCreatedAt,
     fileModifiedAt: upload.fileModifiedAt
   }
   const part = (headers: string) => Buffer.from(`--${boundary}\r\n${headers}\r\n\r\n`)
 
-  async function * generate () {
+  async function* generate() {
     for (const [name, value] of Object.entries(fields)) {
       yield part(`Content-Disposition: form-data; name="${name}"`)
       yield Buffer.from(value + '\r\n')
     }
     yield part(
       `Content-Disposition: form-data; name="assetData"; filename="${upload.filename}"\r\n` +
-      `Content-Type: ${upload.mimeType}`
+        `Content-Type: ${upload.mimeType}`
     )
     for await (const chunk of upload.body) {
       counter.bytes += chunk.length
@@ -71,12 +75,21 @@ function multipartBody (boundary: string, upload: IncomingUpload, counter: { byt
  * which Immich still adds to the album or link. 400 is Immich refusing the
  * file itself. 401 and 403 mean the share no longer accepts uploads.
  */
-export function replyForImmichStatus (status: number, body?: { id?: string, status?: string } | null): ForwardResult {
+export function replyForImmichStatus(
+  status: number,
+  body?: { id?: string; status?: string } | null
+): ForwardResult {
   if (status === 200 || status === 201) {
-    return { ok: true, status: body?.status === 'duplicate' ? 'duplicate' : 'created', id: body?.id || '', bytes: 0 }
+    return {
+      ok: true,
+      status: body?.status === 'duplicate' ? 'duplicate' : 'created',
+      id: body?.id || '',
+      bytes: 0
+    }
   }
   if (status === 400) return { ok: false, status: 400, reason: 'Immich would not accept this file' }
-  if (status === 401 || status === 403) return { ok: false, status: 403, reason: NOT_ACCEPTING_UPLOADS }
+  if (status === 401 || status === 403)
+    return { ok: false, status: 403, reason: NOT_ACCEPTING_UPLOADS }
   return { ok: false, status: 502, reason: 'Immich rejected the upload' }
 }
 
@@ -86,7 +99,11 @@ export function replyForImmichStatus (status: number, body?: { id?: string, stat
  * password share); Immich files the asset into the album or the link itself.
  * Errors are returned, except a permit failure, which is a bug.
  */
-export async function forwardUpload (permit: UploadPermit, upload: IncomingUpload, signal: AbortSignal): Promise<ForwardResult> {
+export async function forwardUpload(
+  permit: UploadPermit,
+  upload: IncomingUpload,
+  signal: AbortSignal
+): Promise<ForwardResult> {
   assertPermit(permit)
 
   const boundary = '----IPPUpload' + crypto.randomBytes(16).toString('hex')
@@ -95,32 +112,48 @@ export async function forwardUpload (permit: UploadPermit, upload: IncomingUploa
 
   let res: globalThis.Response
   try {
-    res = await fetch(url, streamingRequestInit({
-      method: 'POST',
-      headers: {
-        'Content-Type': 'multipart/form-data; boundary=' + boundary,
-        ...(await authHeaders(permit.keyType, permit.key, permit.password))
-      },
-      signal
-    }, multipartBody(boundary, upload, counter)))
+    res = await fetch(
+      url,
+      streamingRequestInit(
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'multipart/form-data; boundary=' + boundary,
+            ...(await authHeaders(permit.keyType, permit.key, permit.password))
+          },
+          signal
+        },
+        multipartBody(boundary, upload, counter)
+      )
+    )
   } catch (e) {
     // The generator's throw surfaces here as the fetch rejecting
-    if (causedBy(e, UploadTooLargeError)) return { ok: false, status: 413, reason: 'File is larger than declared' }
+    if (causedBy(e, UploadTooLargeError))
+      return { ok: false, status: 413, reason: 'File is larger than declared' }
     if (signal.aborted) return { ok: false, status: 499, reason: 'Visitor cancelled the upload' }
     log.warn('Upload to Immich failed for ' + upload.filename + ': ' + errorText(e))
     return { ok: false, status: 502, reason: 'Could not reach Immich' }
   }
 
-  const body = await res.json().catch(() => null) as { id?: string, status?: string, message?: string } | null
+  const body = (await res.json().catch(() => null)) as {
+    id?: string
+    status?: string
+    message?: string
+  } | null
   const result = replyForImmichStatus(res.status, body)
   if (result.ok) return { ...result, bytes: counter.bytes }
-  log.warn('Immich refused upload ' + upload.filename + ' with status ' + res.status +
-    (body?.message ? ': ' + body.message : ''))
+  log.warn(
+    'Immich refused upload ' +
+      upload.filename +
+      ' with status ' +
+      res.status +
+      (body?.message ? ': ' + body.message : '')
+  )
   return result
 }
 
 /** Walk the `cause` chain: fetch wraps the body generator's error. */
-function causedBy (e: unknown, type: new () => Error): boolean {
+function causedBy(e: unknown, type: new () => Error): boolean {
   let current: unknown = e
   while (current instanceof Error) {
     if (current instanceof type) return true
@@ -129,6 +162,6 @@ function causedBy (e: unknown, type: new () => Error): boolean {
   return false
 }
 
-function errorText (e: unknown): string {
+function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }

@@ -16,7 +16,11 @@ describe('buildNotification', () => {
   })
 
   it('names an individual share by the link id', () => {
-    const payload = buildNotification(share({ type: AlbumType.individual, album: undefined, description: 'Some photos' }), file, asset)
+    const payload = buildNotification(
+      share({ type: AlbumType.individual, album: undefined, description: 'Some photos' }),
+      file,
+      asset
+    )
     expect(payload.data.share).toEqual({
       type: 'individual',
       id: 'ffffffff-0000-0000-0000-000000000001',
@@ -31,8 +35,15 @@ describe('buildNotification', () => {
   })
 
   it('names the uploader in the message and the data, and leaves both plain without one', () => {
-    const named = buildNotification(share(), { ...file, name: 'ipp_upload_jane-smith,IMG_0042.jpg' }, asset, 'jane-smith')
-    expect(named.message).toBe('ipp_upload_jane-smith,IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025 by jane-smith.')
+    const named = buildNotification(
+      share(),
+      { ...file, name: 'ipp_upload_jane-smith,IMG_0042.jpg' },
+      asset,
+      'jane-smith'
+    )
+    expect(named.message).toBe(
+      'ipp_upload_jane-smith,IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025 by jane-smith.'
+    )
     expect(named.data.uploader).toBe('jane-smith')
     const anonymous = buildNotification(share(), file, asset)
     expect(anonymous.message).toBe('ipp_upload_IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025.')
@@ -40,7 +51,13 @@ describe('buildNotification', () => {
   })
 
   it('never carries the share key, slug or password', () => {
-    const payload = JSON.stringify(buildNotification(share({ key: 'secret-key', slug: 'secret-slug', password: 'hunter2' }), file, asset))
+    const payload = JSON.stringify(
+      buildNotification(
+        share({ key: 'secret-key', slug: 'secret-slug', password: 'hunter2' }),
+        file,
+        asset
+      )
+    )
     expect(payload).not.toContain('secret-key')
     expect(payload).not.toContain('secret-slug')
     expect(payload).not.toContain('hunter2')

@@ -9,7 +9,7 @@ import { getNumericConfigOption } from '../src/config/access'
   never throttled and every asset in a zip download hit Immich at once.
 */
 
-function loadConfigFrom (config: Record<string, unknown>) {
+function loadConfigFrom(config: Record<string, unknown>) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }

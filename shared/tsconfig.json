@@ -15,17 +15,11 @@
     "importHelpers": true,
     "isolatedModules": true,
     "strictNullChecks": true,
-    "lib": [
-      "DOM",
-      "ES2021"
-    ],
+    "lib": ["DOM", "ES2021"],
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
     "jsxImportSource": "preact"
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

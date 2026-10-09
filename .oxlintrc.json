@@ -4,7 +4,12 @@
   "categories": {
     "correctness": "error"
   },
-  "ignorePatterns": ["**/dist/**", "*/public/**", "docs/.vitepress/cache/**", "docs/.vitepress/dist/**"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "*/public/**",
+    "docs/.vitepress/cache/**",
+    "docs/.vitepress/dist/**"
+  ],
   "rules": {
     "no-unused-vars": ["error", { "args": "none", "caughtErrors": "none" }],
     // Standard `.catch(next)` pattern for handing an async route's rejection

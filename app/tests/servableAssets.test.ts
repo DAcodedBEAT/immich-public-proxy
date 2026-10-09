@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { Asset, AssetType, AssetVisibility, KeyType } from '@ipp/core'
 import { servableAssets } from '../src/share'
 
-function asset (overrides: Partial<Asset> = {}): Asset {
+function asset(overrides: Partial<Asset> = {}): Asset {
   return {
     id: 'a1',
     key: 'k',

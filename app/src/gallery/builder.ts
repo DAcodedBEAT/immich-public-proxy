@@ -1,9 +1,13 @@
-import { AssetType, getConfigOption, getNumericConfigOption, renderPage, SharedLink, title, toString } from '@ipp/core'
 import {
-  getVideoContentType,
-  photoUrl,
-  videoUrl
-} from '../immich'
+  AssetType,
+  getConfigOption,
+  getNumericConfigOption,
+  renderPage,
+  SharedLink,
+  title,
+  toString
+} from '@ipp/core'
+import { getVideoContentType, photoUrl, videoUrl } from '../immich'
 import { Response } from 'express-serve-static-core'
 import { ImageSize } from '../types'
 import { canDownload, expiryDate, uploadHealthcheck, uploadLink } from '../share'
@@ -21,7 +25,7 @@ import { displayDimensions, metadataGroupActive, pickExif } from './exif'
  * @param share - Immich `shared-link` containing the assets to show in the gallery
  * @param [openItem] - Immediately open the lightbox to the Nth item when the gallery loads
  */
-export async function gallery (res: Response, share: SharedLink, openItem?: number) {
+export async function gallery(res: Response, share: SharedLink, openItem?: number) {
   // publicBaseUrl is used for the og:image, which requires a fully qualified URL.
   // You can specify this in your docker-compose file via the PUBLIC_BASE_URL env var.
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || requestBaseUrl(res)
@@ -40,73 +44,83 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
   // it: web `fullsize` resolves to `/original`, which Immich refuses unless the
   // share's own download toggle (`share.allowDownload`) is on. Deliberately
   // independent of IPP's `allowDownload` config.
-  const zoomUpgrade = getConfigOption('ipp.maxZoomQuality', 'preview') === 'fullsize' && share.allowDownload !== false
+  const zoomUpgrade =
+    getConfigOption('ipp.maxZoomQuality', 'preview') === 'fullsize' && share.allowDownload !== false
   const motionPhotos = !!getConfigOption('ipp.motionPhotos', true)
-  const descriptionInCaption = shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.caption', false)
-  const descriptionInSidebar = shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.sidebar', false)
-  const sidebarHasContent = shareMetadataAllowed && (descriptionInSidebar || metadataGroupActive('exif') || metadataGroupActive('location'))
+  const descriptionInCaption =
+    shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.caption', false)
+  const descriptionInSidebar =
+    shareMetadataAllowed && !!getConfigOption('ipp.showMetadata.description.sidebar', false)
+  const sidebarHasContent =
+    shareMetadataAllowed &&
+    (descriptionInSidebar || metadataGroupActive('exif') || metadataGroupActive('location'))
 
-  const items: GalleryItem[] = await Promise.all(share.assets.map(async (asset, index): Promise<GalleryItem> => {
-    let videoData: string | undefined
-    if (asset.type === AssetType.video) {
-      const source: { src: string, type?: string } = { src: videoUrl(share.key, asset.id) }
-      // Album "grid" videos defer the content-type probe (one upstream call
-      // per video) - a <source> with no type lets the browser fall back to
-      // the proxy's response Content-Type, keeping grid render O(buckets).
-      if (!asset.needsDetail) source.type = await getVideoContentType(asset)
-      videoData = JSON.stringify({
-        source: [source],
-        attributes: {
-          playsinline: 'playsinline',
-          controls: 'controls'
-        }
-      })
-    }
+  const items: GalleryItem[] = await Promise.all(
+    share.assets.map(async (asset, index): Promise<GalleryItem> => {
+      let videoData: string | undefined
+      if (asset.type === AssetType.video) {
+        const source: { src: string; type?: string } = { src: videoUrl(share.key, asset.id) }
+        // Album "grid" videos defer the content-type probe (one upstream call
+        // per video) - a <source> with no type lets the browser fall back to
+        // the proxy's response Content-Type, keeping grid render O(buckets).
+        if (!asset.needsDetail) source.type = await getVideoContentType(asset)
+        videoData = JSON.stringify({
+          source: [source],
+          attributes: {
+            playsinline: 'playsinline',
+            controls: 'controls'
+          }
+        })
+      }
 
-    const downloadUrl = photoUrl(share.key, asset.id, ImageSize.original)
-    const thumbnailUrl = photoUrl(share.key, asset.id, ImageSize.thumbnail)
-    // Always request `preview`; the resolver floors gif/video up to the
-    // original on its own (their preview is a static frame).
-    const previewUrl = photoUrl(share.key, asset.id, ImageSize.preview)
-    // Still images only - gif/video are already served at their highest tier.
-    const fullUrl = zoomUpgrade && asset.type === AssetType.image && !requiresOriginal(asset)
-      ? photoUrl(share.key, asset.id, ImageSize.fullsize)
-      : undefined
-    // Motion photo clip, served through the video route under the same key.
-    const motionUrl = motionPhotos && asset.type === AssetType.image && asset.livePhotoVideoId
-      ? videoUrl(share.key, asset.livePhotoVideoId)
-      : undefined
-    // Plain text; the client uses textContent so no escaping needed here.
-    // Description is included if EITHER surface (caption or sidebar) wants it.
-    const descriptionEnabled = descriptionInCaption || descriptionInSidebar
-    const itemDescription = descriptionEnabled && typeof asset?.exifInfo?.description === 'string'
-      ? asset.exifInfo.description
-      : ''
+      const downloadUrl = photoUrl(share.key, asset.id, ImageSize.original)
+      const thumbnailUrl = photoUrl(share.key, asset.id, ImageSize.thumbnail)
+      // Always request `preview`; the resolver floors gif/video up to the
+      // original on its own (their preview is a static frame).
+      const previewUrl = photoUrl(share.key, asset.id, ImageSize.preview)
+      // Still images only - gif/video are already served at their highest tier.
+      const fullUrl =
+        zoomUpgrade && asset.type === AssetType.image && !requiresOriginal(asset)
+          ? photoUrl(share.key, asset.id, ImageSize.fullsize)
+          : undefined
+      // Motion photo clip, served through the video route under the same key.
+      const motionUrl =
+        motionPhotos && asset.type === AssetType.image && asset.livePhotoVideoId
+          ? videoUrl(share.key, asset.livePhotoVideoId)
+          : undefined
+      // Plain text; the client uses textContent so no escaping needed here.
+      // Description is included if EITHER surface (caption or sidebar) wants it.
+      const descriptionEnabled = descriptionInCaption || descriptionInSidebar
+      const itemDescription =
+        descriptionEnabled && typeof asset?.exifInfo?.description === 'string'
+          ? asset.exifInfo.description
+          : ''
 
-    const { width, height } = displayDimensions(asset)
+      const { width, height } = displayDimensions(asset)
 
-    return {
-      id: asset.id,
-      type: asset.type,
-      previewUrl,
-      fullUrl,
-      thumbnailUrl,
-      downloadUrl,
-      videoData,
-      motionUrl,
-      description: itemDescription || undefined,
-      downloadFilename: downloadFilename(asset, positionInShare(share, index)),
-      width,
-      height,
-      thumbhash: asset.thumbhash,
-      fileCreatedAt: asset.fileCreatedAt,
-      localDateTime: asset.localDateTime,
-      exif: shareMetadataAllowed ? pickExif(asset) : undefined,
-      // Album grid items carry no exif / description / real filename yet; the
-      // client fetches them from `metaBase` the first time the item opens.
-      needsDetail: asset.needsDetail || undefined
-    }
-  }))
+      return {
+        id: asset.id,
+        type: asset.type,
+        previewUrl,
+        fullUrl,
+        thumbnailUrl,
+        downloadUrl,
+        videoData,
+        motionUrl,
+        description: itemDescription || undefined,
+        downloadFilename: downloadFilename(asset, positionInShare(share, index)),
+        width,
+        height,
+        thumbhash: asset.thumbhash,
+        fileCreatedAt: asset.fileCreatedAt,
+        localDateTime: asset.localDateTime,
+        exif: shareMetadataAllowed ? pickExif(asset) : undefined,
+        // Album grid items carry no exif / description / real filename yet; the
+        // client fetches them from `metaBase` the first time the item opens.
+        needsDetail: asset.needsDetail || undefined
+      }
+    })
+  )
 
   // Album shares contain lazy items; expose the on-demand metadata route so
   // the client can fetch per-asset detail on lightbox open. Individual shares
@@ -121,9 +135,12 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
   // Guard against an operator setting ipp.lightbox.options to a non-object;
   // a string would otherwise spread character-by-character into PhotoSwipe.
   const rawLightboxOptions = getConfigOption('ipp.lightbox.options', {})
-  const lightboxOptions: Record<string, unknown> = (rawLightboxOptions && typeof rawLightboxOptions === 'object' && !Array.isArray(rawLightboxOptions))
-    ? rawLightboxOptions as Record<string, unknown>
-    : {}
+  const lightboxOptions: Record<string, unknown> =
+    rawLightboxOptions &&
+    typeof rawLightboxOptions === 'object' &&
+    !Array.isArray(rawLightboxOptions)
+      ? (rawLightboxOptions as Record<string, unknown>)
+      : {}
   const props: GalleryProps = {
     items,
     title: title(share),
@@ -169,7 +186,7 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
  * cached per Host, so a forged Host can't put its own og:image URL into a
  * shared cache for other visitors.
  */
-function requestBaseUrl (res: Response): string {
+function requestBaseUrl(res: Response): string {
   res.vary('Host')
   return res.req.protocol + '://' + res.req.headers.host
 }
@@ -177,6 +194,6 @@ function requestBaseUrl (res: Response): string {
 /**
  * Get the Immich shared link description (album-level, not per-asset).
  */
-function description (share: SharedLink) {
+function description(share: SharedLink) {
   return share?.album?.description || ''
 }

@@ -47,9 +47,13 @@ describe('uploadFilename', () => {
   })
 
   it('puts the uploader after the prefix, and leaves a file that already carries the prefix alone', () => {
-    expect(uploadFilename('IMG_0042.jpg', 'ipp_upload_', 'jane-smith')).toBe('ipp_upload_jane-smith,IMG_0042.jpg')
+    expect(uploadFilename('IMG_0042.jpg', 'ipp_upload_', 'jane-smith')).toBe(
+      'ipp_upload_jane-smith,IMG_0042.jpg'
+    )
     expect(uploadFilename('IMG_0042.jpg', '', 'jane-smith')).toBe('jane-smith,IMG_0042.jpg')
-    expect(uploadFilename('ipp_upload_IMG_0042.jpg', 'ipp_upload_', 'jane-smith')).toBe('ipp_upload_IMG_0042.jpg')
+    expect(uploadFilename('ipp_upload_IMG_0042.jpg', 'ipp_upload_', 'jane-smith')).toBe(
+      'ipp_upload_IMG_0042.jpg'
+    )
   })
 
   it('writes no header without a name, so an anonymous file is unchanged from 4.0', () => {
@@ -58,14 +62,22 @@ describe('uploadFilename', () => {
 
   it('removes the separator from the visitor filename, so it only ever ends a field', () => {
     expect(uploadFilename('Paris, France.jpg', 'ipp_upload_')).toBe('ipp_upload_Paris France.jpg')
-    expect(uploadFilename('a,b,c.jpg', 'ipp_upload_', 'jane-smith')).toBe('ipp_upload_jane-smith,abc.jpg')
+    expect(uploadFilename('a,b,c.jpg', 'ipp_upload_', 'jane-smith')).toBe(
+      'ipp_upload_jane-smith,abc.jpg'
+    )
     // Any other punctuation is an ordinary character and stays
-    expect(uploadFilename('best^photo.jpg', 'ipp_upload_', 'jane-smith')).toBe('ipp_upload_jane-smith,best^photo.jpg')
+    expect(uploadFilename('best^photo.jpg', 'ipp_upload_', 'jane-smith')).toBe(
+      'ipp_upload_jane-smith,best^photo.jpg'
+    )
   })
 
   it('uses the configured separator, and removes that one instead', () => {
-    expect(uploadFilename('IMG_0042.jpg', 'ipp_upload_', 'jane-smith', '^')).toBe('ipp_upload_jane-smith^IMG_0042.jpg')
-    expect(uploadFilename('Paris, France^2.jpg', 'ipp_upload_', 'jane-smith', '^')).toBe('ipp_upload_jane-smith^Paris, France2.jpg')
+    expect(uploadFilename('IMG_0042.jpg', 'ipp_upload_', 'jane-smith', '^')).toBe(
+      'ipp_upload_jane-smith^IMG_0042.jpg'
+    )
+    expect(uploadFilename('Paris, France^2.jpg', 'ipp_upload_', 'jane-smith', '^')).toBe(
+      'ipp_upload_jane-smith^Paris, France2.jpg'
+    )
   })
 
   it('stays within 254 characters with the extension intact', () => {
@@ -112,11 +124,31 @@ describe('uploaderSlug', () => {
 
 describe('isUsableSeparator', () => {
   it('accepts punctuation that sanitize keeps', () => {
-    for (const separator of ['^', ',', '~', '#', '+']) expect(isUsableSeparator(separator, 'ipp_upload_')).toBe(true)
+    for (const separator of ['^', ',', '~', '#', '+'])
+      expect(isUsableSeparator(separator, 'ipp_upload_')).toBe(true)
   })
 
   it('rejects more than one character, anything that could be part of a name or a filename, or a non-string', () => {
-    for (const separator of ['', 'a', '1', '-', '.', ' ', 'x^', '^ ', '/', ':', '*', '"', '\u0000', 'ñ', '٣', '^^', '~,', '#!']) {
+    for (const separator of [
+      '',
+      'a',
+      '1',
+      '-',
+      '.',
+      ' ',
+      'x^',
+      '^ ',
+      '/',
+      ':',
+      '*',
+      '"',
+      '\u0000',
+      'ñ',
+      '٣',
+      '^^',
+      '~,',
+      '#!'
+    ]) {
       expect(isUsableSeparator(separator, 'ipp_upload_')).toBe(false)
     }
     expect(isUsableSeparator(undefined, 'ipp_upload_')).toBe(false)

@@ -2,6 +2,14 @@
   "name": "immich-public-proxy-upload",
   "version": "4.1.1",
   "private": true,
+  "description": "Lets visitors of an Immich Public Proxy share send photos and videos back to it.",
+  "license": "AGPL-3.0",
+  "author": "Alan Grainger",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alangrainger/immich-public-proxy.git"
+  },
+  "main": "dist/index.js",
   "scripts": {
     "predev": "tsc -b ../shared",
     "dev": "concurrently -n core,server,client -c magenta,blue,green \"tsc -b -w --preserveWatchOutput ../shared\" \"tsx watch src/index.ts\" \"tsc -w -p tsconfig.client.json\"",
@@ -12,14 +20,6 @@
     "test:container": "podman build --build-arg PACKAGE_VERSION=$(npm pkg get version | xargs) --format docker -f ../Dockerfile.upload -t immich-proxy-upload-test .. && podman run -it -p=3001:3000 --env-file .env -e IPP_PORT=3000 --restart=always immich-proxy-upload-test",
     "start": "node dist/index.js"
   },
-  "author": "Alan Grainger",
-  "license": "AGPL-3.0",
-  "description": "Lets visitors of an Immich Public Proxy share send photos and videos back to it.",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/alangrainger/immich-public-proxy.git"
-  },
-  "main": "dist/index.js",
   "dependencies": {
     "@ipp/core": "*",
     "dayjs": "^1.11.13",
