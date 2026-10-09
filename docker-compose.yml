@@ -3,6 +3,11 @@ services:
     image: alangrainger/immich-public-proxy:latest
     container_name: immich-public-proxy
     restart: always
+    # Published on every host interface. Docker writes its own firewall rules for
+    # this, ahead of ufw/firewalld, so a "deny 3000" rule there does NOT block it.
+    # If only a reverse proxy on this same host reaches IPP, use
+    # "127.0.0.1:3000:3000" instead. That matters if you set IPP_TRUST_PROXY:
+    # anything that can reach this port directly can forge X-Forwarded-For.
     ports:
       - '3000:3000'
     read_only: true
@@ -13,6 +18,12 @@ services:
     environment:
       PUBLIC_BASE_URL: https://your-proxy-url.com
       IMMICH_URL: http://your-internal-immich-server:2283
+    # Many concurrent connections (large galleries, zip downloads, lots of
+    # visitors at once) can reach Docker's often-low open file limit first.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     healthcheck:
       test: curl -sf -m 4 http://localhost:3000/share/healthcheck -o /dev/null || exit 1
       start_period: 10s
