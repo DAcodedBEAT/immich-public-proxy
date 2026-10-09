@@ -7,7 +7,7 @@ import {
   SharedLink,
   title
 } from '@ipp/core'
-import { assetFetchUrl, authHeadersForAsset } from '../immich'
+import { assetFetchUrl, authHeadersForAsset } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
 import type { Archiver } from 'archiver' with { 'resolution-mode': 'import' }
 import { resolveDownloadEndpoint, ImageEndpoint } from '../gallery/sizing'

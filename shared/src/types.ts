@@ -3,12 +3,14 @@ export enum AssetType {
   video = 'VIDEO'
 }
 
-/** Immich's asset visibility states, as the API serialises them. */
+/**
+ * Immich's asset visibility states, as the API serialises them. Immich also
+ * sends `hidden` for the video half of a motion photo, which nothing here
+ * branches on.
+ */
 export enum AssetVisibility {
   timeline = 'timeline',
   archive = 'archive',
-  /** The video half of a motion photo, never shown on its own */
-  hidden = 'hidden',
   /** The owner's PIN-protected locked folder */
   locked = 'locked'
 }

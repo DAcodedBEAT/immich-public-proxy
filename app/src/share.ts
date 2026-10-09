@@ -46,7 +46,7 @@ const DEFAULT_UPLOAD_URL = '/upload'
  * IPP's hostname such as the default `/upload`. Undefined when the option is
  * empty, so the button is off, or not one of those two forms.
  */
-export function uploadBase(): string | undefined {
+function uploadBase(): string | undefined {
   const configured = getConfigOption('ipp.uploadUrl', DEFAULT_UPLOAD_URL)
   if (typeof configured !== 'string') return undefined
   const base = configured.trim().replace(/\/+$/, '')
