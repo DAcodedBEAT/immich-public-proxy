@@ -13,10 +13,14 @@ import { setupToolbar } from './selection.js'
 import { initLightbox, openLightbox } from './lightbox.js'
 import { computeLayoutAndRender, onScroll } from './virtualisation.js'
 
-function readInitParams (): InitParams {
+function readInitParams(): InitParams {
   const el = document.getElementById('ipp-init')
   if (!el) return {}
-  try { return JSON.parse(el.textContent || '{}') } catch (e) { return {} }
+  try {
+    return JSON.parse(el.textContent || '{}')
+  } catch (e) {
+    return {}
+  }
 }
 
 /**
@@ -28,18 +32,20 @@ function readInitParams (): InitParams {
  * there. The header may exist only for this button, in which case it is
  * hidden too.
  */
-function revealUploadLink () {
+function revealUploadLink() {
   const link = document.getElementById('upload-link')
   const url = link?.dataset.healthcheck
   if (!link || !url) return
-  fetch(url, { cache: 'no-store' }).then(async res => {
-    if (res.status !== 200 || (await res.text()).trim() !== 'ok') return
-    link.hidden = false
-    document.getElementById('header')?.removeAttribute('hidden')
-  }).catch(() => {})
+  fetch(url, { cache: 'no-store' })
+    .then(async res => {
+      if (res.status !== 200 || (await res.text()).trim() !== 'ok') return
+      link.hidden = false
+      document.getElementById('header')?.removeAttribute('hidden')
+    })
+    .catch(() => {})
 }
 
-function init () {
+function init() {
   const params = readInitParams()
   revealUploadLink()
   state.items = params.items || []

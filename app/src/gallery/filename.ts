@@ -20,7 +20,7 @@ export interface AssetPosition {
  * The position of the asset at `index` in `share.assets`, which is already in
  * display order (see gallery/order.ts).
  */
-export function positionInShare (share: SharedLink, index: number): AssetPosition {
+export function positionInShare(share: SharedLink, index: number): AssetPosition {
   return { shareKey: share.key, position: index + 1, count: share.assets.length }
 }
 
@@ -29,7 +29,7 @@ export function positionInShare (share: SharedLink, index: number): AssetPositio
  * the position of the still it belongs to. Undefined when the id is not in
  * the share, which `getFilename` treats as "no position".
  */
-export function findPositionInShare (share: SharedLink, assetId: string): AssetPosition | undefined {
+export function findPositionInShare(share: SharedLink, assetId: string): AssetPosition | undefined {
   const index = share.assets.findIndex(a => a.id === assetId || a.livePhotoVideoId === assetId)
   return index === -1 ? undefined : positionInShare(share, index)
 }
@@ -47,7 +47,7 @@ const MIN_POSITION_DIGITS = 3
  * name; it is the key, not the slug, so a share reached either way gets the
  * same names.
  */
-export function positionStem ({ shareKey, position, count }: AssetPosition): string {
+export function positionStem({ shareKey, position, count }: AssetPosition): string {
   const prefix = createHash('sha256').update(shareKey).digest('hex').slice(0, 8)
   const digits = Math.max(MIN_POSITION_DIGITS, String(count).length)
   return prefix + '_' + String(position).padStart(digits, '0')
@@ -59,7 +59,7 @@ export function positionStem ({ shareKey, position, count }: AssetPosition): str
  * the original filename (which usually has the correct extension) is
  * preserved by `withMimeExtension`.
  */
-function mimeToExt (mime: string | undefined): string {
+function mimeToExt(mime: string | undefined): string {
   if (!mime) return ''
   const map: Record<string, string> = {
     'image/jpeg': '.jpg',
@@ -88,7 +88,7 @@ function mimeToExt (mime: string | undefined): string {
  * `.tif`/`.tiff`) are accepted as already-present so we don't produce
  * `IMG.jpeg.jpg` for an `image/jpeg` asset.
  */
-function withMimeExtension (filename: string, mime: string | undefined): string {
+function withMimeExtension(filename: string, mime: string | undefined): string {
   const ext = mimeToExt(mime)
   if (!ext) return filename
   const aliases: Record<string, string[]> = {
@@ -113,7 +113,12 @@ function withMimeExtension (filename: string, mime: string | undefined): string 
  * @param [position] - the asset's place in its share, which `downloadedFilename: 2`
  *   names by. Without it that mode falls back to the asset ID.
  */
-export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.original, servedMimeOverride?: string, position?: AssetPosition): string {
+export function getFilename(
+  asset: Asset,
+  servedSize: ImageSize = ImageSize.original,
+  servedMimeOverride?: string,
+  position?: AssetPosition
+): string {
   const override = mimeToExt(servedMimeOverride) ? servedMimeOverride : undefined
   let servedMime: string | undefined
   if (override) {
@@ -140,9 +145,10 @@ export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.ori
       if (!cleanName) return withMimeExtension(asset.id, servedMime)
       // Keep the original extension only when the served bytes really are the
       // original file; a size downgrade or playback transcode replaces it.
-      const stem = servedSize === ImageSize.original && !override
-        ? cleanName
-        : cleanName.replace(/\.[a-zA-Z0-9]{2,5}$/, '')
+      const stem =
+        servedSize === ImageSize.original && !override
+          ? cleanName
+          : cleanName.replace(/\.[a-zA-Z0-9]{2,5}$/, '')
       return withMimeExtension(stem, servedMime)
     }
   }
@@ -152,24 +158,31 @@ export function getFilename (asset: Asset, servedSize: ImageSize = ImageSize.ori
  * Filename for a download link's `download` attribute. Converted tiers are assumed
  * JPEG; the download's Content-Disposition, which browsers prefer, has the real name.
  */
-export function downloadFilename (asset: Asset, position?: AssetPosition): string {
-  return getFilename(asset, resolveImageEndpoint(ImageSize.original, asset).servedSize, undefined, position)
+export function downloadFilename(asset: Asset, position?: AssetPosition): string {
+  return getFilename(
+    asset,
+    resolveImageEndpoint(ImageSize.original, asset).servedSize,
+    undefined,
+    position
+  )
 }
 
 /** Download Content-Disposition, RFC 5987-encoded so `,` and `;` can't split the header. */
-export function attachmentDisposition (filename: string): string {
-  const encoded = encodeURIComponent(filename)
-    .replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase())
+export function attachmentDisposition(filename: string): string {
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    c => '%' + c.charCodeAt(0).toString(16).toUpperCase()
+  )
   return `attachment; filename*=UTF-8''${encoded}`
 }
 
 /** Content-type without its parameters, or undefined if absent. */
-export function responseMime (response: globalThis.Response): string | undefined {
+export function responseMime(response: globalThis.Response): string | undefined {
   return (response.headers.get('content-type') || '').split(';')[0].trim() || undefined
 }
 
 /** Content-type of Immich-generated bytes (anything but /original), to name the file by. */
-export function servedMimeFrom (subpath: string, response: globalThis.Response): string | undefined {
+export function servedMimeFrom(subpath: string, response: globalThis.Response): string | undefined {
   return subpath === '/original' ? undefined : responseMime(response)
 }
 
@@ -179,7 +192,7 @@ export function servedMimeFrom (subpath: string, response: globalThis.Response):
  * without them (lazy album grid assets). Returns a shallow copy so the cached
  * share asset is never mutated.
  */
-export function enrichFromHeaders (asset: Asset, response: globalThis.Response): Asset {
+export function enrichFromHeaders(asset: Asset, response: globalThis.Response): Asset {
   const fileName = filenameFromContentDisposition(response.headers.get('content-disposition'))
   const mime = responseMime(response)
   if (!fileName && !mime) return asset
@@ -195,7 +208,7 @@ export function enrichFromHeaders (asset: Asset, response: globalThis.Response):
  * `filename*=UTF-8''...` form (percent-decoded) over the plain `filename=`.
  * Returns undefined when neither is present.
  */
-export function filenameFromContentDisposition (header: string | null): string | undefined {
+export function filenameFromContentDisposition(header: string | null): string | undefined {
   if (!header) return undefined
   const extended = header.match(/filename\*=(?:UTF-8'')?([^;]+)/i)
   if (extended) {

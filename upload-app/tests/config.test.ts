@@ -20,7 +20,18 @@ describe('upload options', () => {
   })
 
   it('keeps only string notification headers', () => {
-    setConfig({ ipp: { upload: { notifyUrl: 'https://ntfy.example.com/topic', notifyHeaders: { Authorization: 'Bearer x', Bad: 1 } } } })
-    expect(notifyConfig()).toEqual({ url: 'https://ntfy.example.com/topic', headers: { Authorization: 'Bearer x' }, timeoutMs: 10_000 })
+    setConfig({
+      ipp: {
+        upload: {
+          notifyUrl: 'https://ntfy.example.com/topic',
+          notifyHeaders: { Authorization: 'Bearer x', Bad: 1 }
+        }
+      }
+    })
+    expect(notifyConfig()).toEqual({
+      url: 'https://ntfy.example.com/topic',
+      headers: { Authorization: 'Bearer x' },
+      timeoutMs: 10_000
+    })
   })
 })

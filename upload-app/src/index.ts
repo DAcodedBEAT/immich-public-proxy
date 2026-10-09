@@ -56,7 +56,8 @@ app.disable('x-powered-by')
   visitor loses a connection worth keeping.
 */
 app.use((req, res, next) => {
-  if (req.headers['content-length'] || req.headers['transfer-encoding']) res.set('Connection', 'close')
+  if (req.headers['content-length'] || req.headers['transfer-encoding'])
+    res.set('Connection', 'close')
   next()
 })
 
@@ -65,7 +66,7 @@ app.use((req, res, next) => {
  * its body before answering: with no whole-request timeout, a slow sender
  * would otherwise hold it open forever.
  */
-function bodyDeadline (ms: number): RequestHandler {
+function bodyDeadline(ms: number): RequestHandler {
   return (req, res, next) => {
     const timer = setTimeout(() => req.destroy(), ms)
     res.once('close', () => clearTimeout(timer))
@@ -77,15 +78,22 @@ function bodyDeadline (ms: number): RequestHandler {
   [ROUTE] Healthcheck, reachable at the root whatever the mount prefix, so one
   compose healthcheck fits both routing shapes.
 */
-app.get(['/healthcheck', '/share/healthcheck'], (_req, res, next) => {
-  addNoStoreHeaders(res)
-  next()
-}, asyncHandler(healthcheck))
+app.get(
+  ['/healthcheck', '/share/healthcheck'],
+  (_req, res, next) => {
+    addNoStoreHeaders(res)
+    next()
+  },
+  asyncHandler(healthcheck)
+)
 
 const router = Router()
 
 for (const dir of ['public', CORE_PUBLIC_DIR]) {
-  router.use('/share/static/' + ASSET_VERSION, express.static(dir, { immutable: inProduction, maxAge: inProduction ? '365d' : 0 }))
+  router.use(
+    '/share/static/' + ASSET_VERSION,
+    express.static(dir, { immutable: inProduction, maxAge: inProduction ? '365d' : 0 })
+  )
   router.use('/share/static', express.static(dir))
 }
 
@@ -105,46 +113,68 @@ router.use(sessionMiddleware({ name: 'upload-session' }))
 router.get(['/healthcheck', '/share/healthcheck'], asyncHandler(healthcheck))
 
 type ShareResolution =
-  | { ok: true, link: SharedLink, keyType: KeyType }
-  | { ok: false, reason: string, passwordRequired?: boolean }
+  | { ok: true; link: SharedLink; keyType: KeyType }
+  | { ok: false; reason: string; passwordRequired?: boolean }
 
 /** Validate the share in the URL against Immich, with the password from the session cookie. */
-async function resolveShare (req: Request): Promise<ShareResolution> {
+async function resolveShare(req: Request): Promise<ShareResolution> {
   const keyType = getKeyTypeFromShare(req.params.shareType)
-  if (slugLinksDisabled(keyType)) return { ok: false, reason: 'Slug links are disabled in config.json' }
+  if (slugLinksDisabled(keyType))
+    return { ok: false, reason: 'Slug links are disabled in config.json' }
   if (!isKey(req.params.key)) return { ok: false, reason: 'Invalid key for ' + req.path }
   const share = await getShare(req.params.key, keyType, req.password)
   if (!share.valid) return { ok: false, reason: 'Invalid share link' }
-  if (share.passwordRequired || !share.link) return { ok: false, reason: 'Password required', passwordRequired: true }
+  if (share.passwordRequired || !share.link)
+    return { ok: false, reason: 'Password required', passwordRequired: true }
   return { ok: true, link: share.link, keyType }
 }
 
 /*
   [ROUTE] Upload page, or the password page for a locked share
 */
-router.get('/:shareType(share|s)/:key', decodeCookie, asyncHandler(async (req, res) => {
-  const key = req.params.key
-  const resolved = await resolveShare(req)
-  if (!resolved.ok && resolved.passwordRequired) {
-    if (req.password) invalidPasswordResponse(req, res, key)
-    res.send(renderPage(h(Password, { shareKey: key, notifyInvalidPassword: !!req.password, basePath: req.baseUrl })))
-    return
-  }
-  if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
-    respondToInvalidRequest(res, 404, resolved.ok ? 'Share does not accept uploads' : resolved.reason)
-    return
-  }
-  const gallery = galleryUrl()
-  res.send(renderPage(h(UploadPage, {
-    config: {
-      uploadUrl: `${req.baseUrl}/${req.params.shareType}/${encodeURIComponent(key)}/upload`,
-      maxFileSize: maxFileSize(),
-      title: title(resolved.link)
-    },
-    basePath: req.baseUrl,
-    galleryLink: gallery && `${gallery}/${req.params.shareType}/${encodeURIComponent(key)}`
-  })))
-}))
+router.get(
+  '/:shareType(share|s)/:key',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const key = req.params.key
+    const resolved = await resolveShare(req)
+    if (!resolved.ok && resolved.passwordRequired) {
+      if (req.password) invalidPasswordResponse(req, res, key)
+      res.send(
+        renderPage(
+          h(Password, {
+            shareKey: key,
+            notifyInvalidPassword: !!req.password,
+            basePath: req.baseUrl
+          })
+        )
+      )
+      return
+    }
+    if (!resolved.ok || !uploadAllowed(resolved.link, resolved.keyType)) {
+      respondToInvalidRequest(
+        res,
+        404,
+        resolved.ok ? 'Share does not accept uploads' : resolved.reason
+      )
+      return
+    }
+    const gallery = galleryUrl()
+    res.send(
+      renderPage(
+        h(UploadPage, {
+          config: {
+            uploadUrl: `${req.baseUrl}/${req.params.shareType}/${encodeURIComponent(key)}/upload`,
+            maxFileSize: maxFileSize(),
+            title: title(resolved.link)
+          },
+          basePath: req.baseUrl,
+          galleryLink: gallery && `${gallery}/${req.params.shareType}/${encodeURIComponent(key)}`
+        })
+      )
+    )
+  })
+)
 
 /*
   [ROUTE] Password unlock from the password page
@@ -154,14 +184,18 @@ router.post('/share/unlock', bodyDeadline(10_000), express.json({ limit: '10kb' 
 /*
   [ROUTE] One file from a visitor, streamed to Immich
 */
-router.post('/:shareType(share|s)/:key/upload', decodeCookie, asyncHandler(async (req, res) => {
-  const resolved = await resolveShare(req)
-  if (!resolved.ok) {
-    respondToInvalidRequest(res, 404, resolved.reason)
-    return
-  }
-  await receiveUpload(req, res, resolved.link, resolved.keyType)
-}))
+router.post(
+  '/:shareType(share|s)/:key/upload',
+  decodeCookie,
+  asyncHandler(async (req, res) => {
+    const resolved = await resolveShare(req)
+    if (!resolved.ok) {
+      respondToInvalidRequest(res, 404, resolved.reason)
+      return
+    }
+    await receiveUpload(req, res, resolved.link, resolved.keyType)
+  })
+)
 
 /*
   The same routes under `/upload` and at the root, so either reverse proxy
@@ -182,7 +216,7 @@ app.all('*', (req, res) => {
 
 app.use(errorHandler)
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   console.error('There was an uncaught error', err)
   server.close()
   process.exit(1)

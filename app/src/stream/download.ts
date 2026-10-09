@@ -1,9 +1,24 @@
-import { Asset, log, readableFromWeb, respondToInvalidRequest, sanitize, SharedLink, title } from '@ipp/core'
+import {
+  Asset,
+  log,
+  readableFromWeb,
+  respondToInvalidRequest,
+  sanitize,
+  SharedLink,
+  title
+} from '@ipp/core'
 import { assetFetchUrl, authHeadersForAsset } from '../immich'
 import { Response } from 'express-serve-static-core'
 import archiver, { Archiver } from 'archiver'
 import { resolveDownloadEndpoint, ImageEndpoint } from '../gallery/sizing'
-import { AssetPosition, attachmentDisposition, enrichFromHeaders, findPositionInShare, getFilename, servedMimeFrom } from '../gallery/filename'
+import {
+  AssetPosition,
+  attachmentDisposition,
+  enrichFromHeaders,
+  findPositionInShare,
+  getFilename,
+  servedMimeFrom
+} from '../gallery/filename'
 
 /** Attempts to get response headers from Immich for one asset before giving up. */
 const MAX_ATTEMPTS = 3
@@ -13,12 +28,19 @@ const HEADER_TIMEOUT_MS = 20_000
 /**
  * Download all assets in a share as a zip file.
  */
-export async function downloadAll (res: Response, share: SharedLink) {
+export async function downloadAll(res: Response, share: SharedLink) {
   await downloadAssets(res, share, share.assets)
 }
 
-type FetchedAsset = { response: globalThis.Response, asset: Asset, endpoint: ImageEndpoint, servedMime?: string, url: string, position?: AssetPosition }
-type Failure = { asset: Asset, url: string, status?: number, error?: unknown }
+type FetchedAsset = {
+  response: globalThis.Response
+  asset: Asset
+  endpoint: ImageEndpoint
+  servedMime?: string
+  url: string
+  position?: AssetPosition
+}
+type Failure = { asset: Asset; url: string; status?: number; error?: unknown }
 type FetchOutcome = FetchedAsset | { failure: Failure } | null
 
 /**
@@ -56,7 +78,7 @@ type FetchOutcome = FetchedAsset | { failure: Failure } | null
  * Zip entries use STORE (no compression), since photos and videos are
  * already compressed.
  */
-export async function downloadAssets (res: Response, share: SharedLink, assets: Asset[]) {
+export async function downloadAssets(res: Response, share: SharedLink, assets: Asset[]) {
   const archive = archiver('zip', { store: true })
   // Without a listener, an archiver 'error' emission would crash the process.
   archive.on('error', e => log(`Archiver error for share ${share.key}: ${e.message}`))
@@ -64,7 +86,9 @@ export async function downloadAssets (res: Response, share: SharedLink, assets: 
   const controller = new AbortController()
   let clientGone = false
   let resolveClosed!: () => void
-  const resClosed = new Promise<void>(resolve => { resolveClosed = resolve })
+  const resClosed = new Promise<void>(resolve => {
+    resolveClosed = resolve
+  })
   const onClose = () => {
     if (res.writableFinished) return
     clientGone = true
@@ -99,7 +123,11 @@ export async function downloadAssets (res: Response, share: SharedLink, assets: 
     if (entry !== 'done') {
       if (clientGone) break
       controller.abort()
-      abortDownload(archive, res, share, { asset: fetched.asset, url: fetched.url, error: entry.error })
+      abortDownload(archive, res, share, {
+        asset: fetched.asset,
+        url: fetched.url,
+        error: entry.error
+      })
       return
     }
   }
@@ -115,7 +143,10 @@ export async function downloadAssets (res: Response, share: SharedLink, assets: 
   // Raced against client disconnect because finalize() never settles once
   // the response is destroyed. The inline rejection handler also stops a
   // late finalize failure becoming an unhandled rejection after a lost race.
-  const finished = archive.finalize().then(() => 'done' as const, () => 'error' as const)
+  const finished = archive.finalize().then(
+    () => 'done' as const,
+    () => 'error' as const
+  )
   const outcome = await Promise.race([finished, resClosed.then(() => 'closed' as const)])
   if (outcome !== 'done') {
     if (outcome === 'closed') log(`Zip download for share ${share.key} cancelled by client`)
@@ -124,9 +155,12 @@ export async function downloadAssets (res: Response, share: SharedLink, assets: 
   }
 }
 
-function startZipResponse (res: Response, share: SharedLink, archive: Archiver) {
+function startZipResponse(res: Response, share: SharedLink, archive: Archiver) {
   res.setHeader('Content-Type', 'application/zip')
-  res.setHeader('Content-Disposition', attachmentDisposition((sanitize(title(share)) || 'photos') + '.zip'))
+  res.setHeader(
+    'Content-Disposition',
+    attachmentDisposition((sanitize(title(share)) || 'photos') + '.zip')
+  )
   // Hint to intermediate proxies (Nginx, etc.) not to buffer this response.
   res.setHeader('X-Accel-Buffering', 'no')
   res.setHeader('Cache-Control', 'no-store')
@@ -144,7 +178,10 @@ function startZipResponse (res: Response, share: SharedLink, archive: Archiver) 
  * and archiver attaching its own handler, when an unhandled 'error' would
  * otherwise crash the process.
  */
-function appendEntry (archive: Archiver, fetched: FetchedAsset): Promise<'done' | { error: unknown }> {
+function appendEntry(
+  archive: Archiver,
+  fetched: FetchedAsset
+): Promise<'done' | { error: unknown }> {
   return new Promise(resolve => {
     if (!fetched.response.body) {
       resolve({ error: new Error('Upstream response has no body') })
@@ -156,23 +193,39 @@ function appendEntry (archive: Archiver, fetched: FetchedAsset): Promise<'done' 
       archive.off('error', onError)
       body.off('error', onError)
     }
-    const onEntry = () => { cleanup(); resolve('done') }
-    const onError = (error: unknown) => { cleanup(); resolve({ error }) }
+    const onEntry = () => {
+      cleanup()
+      resolve('done')
+    }
+    const onError = (error: unknown) => {
+      cleanup()
+      resolve({ error })
+    }
     archive.once('entry', onEntry)
     archive.once('error', onError)
     body.once('error', onError)
-    archive.append(body, { name: getFilename(fetched.asset, fetched.endpoint.servedSize, fetched.servedMime, fetched.position) })
+    archive.append(body, {
+      name: getFilename(
+        fetched.asset,
+        fetched.endpoint.servedSize,
+        fetched.servedMime,
+        fetched.position
+      )
+    })
   })
 }
 
-function describeFailure (share: SharedLink, failure: Failure): string {
-  const detail = failure.status !== undefined
-    ? `HTTP ${failure.status}`
-    : (failure.error instanceof Error ? failure.error.message : String(failure.error))
+function describeFailure(share: SharedLink, failure: Failure): string {
+  const detail =
+    failure.status !== undefined
+      ? `HTTP ${failure.status}`
+      : failure.error instanceof Error
+        ? failure.error.message
+        : String(failure.error)
   return `Zip download for share ${share.key}: failed to fetch asset ${failure.asset.id} from ${failure.url} (${detail})`
 }
 
-function abortDownload (archive: Archiver, res: Response, share: SharedLink, failure: Failure) {
+function abortDownload(archive: Archiver, res: Response, share: SharedLink, failure: Failure) {
   log('Aborting ' + describeFailure(share, failure))
   teardownArchive(archive, res)
 }
@@ -182,7 +235,7 @@ function abortDownload (archive: Archiver, res: Response, share: SharedLink, fai
  * is not enough; it kills the queue but leaves any in-flight entry paused,
  * holding its source stream open forever #284
  */
-function teardownArchive (archive: Archiver, res: Response) {
+function teardownArchive(archive: Archiver, res: Response) {
   archive.abort()
   archive.unpipe(res)
   res.destroy()
@@ -196,14 +249,25 @@ function teardownArchive (archive: Archiver, res: Response) {
  * Returns the fetched asset on success, a wrapped Failure on error, or null
  * if the download was aborted before we got an answer.
  */
-async function fetchOne (share: SharedLink, asset: Asset, signal: AbortSignal): Promise<FetchOutcome> {
+async function fetchOne(
+  share: SharedLink,
+  asset: Asset,
+  signal: AbortSignal
+): Promise<FetchOutcome> {
   if (signal.aborted) return null
 
   const endpoint = resolveDownloadEndpoint(asset, share.allowDownload !== false)
   const url = assetFetchUrl(asset, endpoint.subpath, endpoint.sizeQueryParam)
   const reqAuthHeaders = await authHeadersForAsset(asset)
 
-  const fetched = await fetchHeadersWithRetry(url, reqAuthHeaders, MAX_ATTEMPTS, HEADER_TIMEOUT_MS, signal, asset)
+  const fetched = await fetchHeadersWithRetry(
+    url,
+    reqAuthHeaders,
+    MAX_ATTEMPTS,
+    HEADER_TIMEOUT_MS,
+    signal,
+    asset
+  )
   if (fetched === null) return null
   if ('failure' in fetched) return { failure: { ...fetched.failure, asset, url } }
 
@@ -215,12 +279,19 @@ async function fetchOne (share: SharedLink, asset: Asset, signal: AbortSignal): 
 
   // A multi-select download keeps each asset's position in the whole share
   const position = findPositionInShare(share, asset.id)
-  return { response: fetched.response, asset: namedAsset, endpoint, servedMime: servedMimeFrom(endpoint.subpath, fetched.response), url, position }
+  return {
+    response: fetched.response,
+    asset: namedAsset,
+    endpoint,
+    servedMime: servedMimeFrom(endpoint.subpath, fetched.response),
+    url,
+    position
+  }
 }
 
 type HeaderFetchOutcome =
   | { response: globalThis.Response }
-  | { failure: { status?: number, error?: unknown } }
+  | { failure: { status?: number; error?: unknown } }
   | null
 
 /**
@@ -237,7 +308,7 @@ type HeaderFetchOutcome =
  * aborted download (asset failure or client disconnect) cancels the header
  * wait and any in-flight body stream immediately.
  */
-async function fetchHeadersWithRetry (
+async function fetchHeadersWithRetry(
   url: string,
   headers: Record<string, string>,
   maxAttempts: number,
@@ -250,9 +321,15 @@ async function fetchHeadersWithRetry (
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (signal.aborted) return null
     const controller = new AbortController()
-    const headerTimer = setTimeout(() => controller.abort(new Error(`No response headers within ${headerTimeoutMs}ms`)), headerTimeoutMs)
+    const headerTimer = setTimeout(
+      () => controller.abort(new Error(`No response headers within ${headerTimeoutMs}ms`)),
+      headerTimeoutMs
+    )
     try {
-      const data = await fetch(url, { signal: AbortSignal.any([controller.signal, signal]), headers })
+      const data = await fetch(url, {
+        signal: AbortSignal.any([controller.signal, signal]),
+        headers
+      })
       clearTimeout(headerTimer)
       if (data.ok) return { response: data }
       await data.body?.cancel()
@@ -264,9 +341,12 @@ async function fetchHeadersWithRetry (
       lastStatus = undefined
     }
     if (attempt < maxAttempts && !signal.aborted) {
-      const reason = lastStatus !== undefined
-        ? `HTTP ${lastStatus}`
-        : (lastError instanceof Error ? lastError.message : String(lastError))
+      const reason =
+        lastStatus !== undefined
+          ? `HTTP ${lastStatus}`
+          : lastError instanceof Error
+            ? lastError.message
+            : String(lastError)
       log(`Retrying asset ${asset.id} (attempt ${attempt + 1}/${maxAttempts}) after ${reason}`)
       await new Promise(resolve => setTimeout(resolve, 500 * attempt))
     }

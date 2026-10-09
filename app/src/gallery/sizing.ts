@@ -28,7 +28,7 @@ export interface ImageEndpoint {
  * original endpoint. IPP-forced video downloads have their own playback
  * fallback in `resolveDownloadEndpoint`.
  */
-export function requiresOriginal (asset: Asset): boolean {
+export function requiresOriginal(asset: Asset): boolean {
   if (isVideoAsset(asset)) {
     return true
   } else if (asset.originalMimeType === 'image/gif') {
@@ -42,7 +42,7 @@ export function requiresOriginal (asset: Asset): boolean {
  * while detailed Immich asset responses identify video originals by MIME type;
  * endpoint selection accepts either signal.
  */
-export function isVideoAsset (asset: Asset): boolean {
+export function isVideoAsset(asset: Asset): boolean {
   return asset.type === AssetType.video || !!asset.originalMimeType?.startsWith('video/')
 }
 
@@ -54,7 +54,7 @@ export function isVideoAsset (asset: Asset): boolean {
 */
 const WEB_DISPLAYABLE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
-function isWebDisplayable (asset: Asset): boolean {
+function isWebDisplayable(asset: Asset): boolean {
   return !!asset.originalMimeType && WEB_DISPLAYABLE_MIME.has(asset.originalMimeType)
 }
 
@@ -73,7 +73,7 @@ const clamp = (size: ImageSize, lo: ImageSize, hi: ImageSize) =>
  * Operator ceiling for the download tier (`ipp.maxDownloadQuality`). `original`
  * is allowed here because a download needn't be browser-renderable.
  */
-function maxDownloadQuality (): ImageSize {
+function maxDownloadQuality(): ImageSize {
   const value = getConfigOption('ipp.maxDownloadQuality', 'original')
   if (value === 'preview') return ImageSize.preview
   if (value === 'fullsize') return ImageSize.fullsize
@@ -85,7 +85,7 @@ function maxDownloadQuality (): ImageSize {
  * deliberately not an option: a zoom upgrade must stay browser-displayable, and
  * the original could be an unviewable RAW/DNG or a huge file.
  */
-function maxZoomQuality (): ImageSize {
+function maxZoomQuality(): ImageSize {
   return getConfigOption('ipp.maxZoomQuality', 'preview') === 'fullsize'
     ? ImageSize.fullsize
     : ImageSize.preview
@@ -96,7 +96,7 @@ function maxZoomQuality (): ImageSize {
  * `original` (download) caps at `maxDownloadQuality`, `fullsize` (zoom) caps at
  * `maxZoomQuality`. `preview` / `thumbnail` are never capped.
  */
-function ceiling (requested: ImageSize): ImageSize {
+function ceiling(requested: ImageSize): ImageSize {
   if (requested === ImageSize.original) return maxDownloadQuality()
   if (requested === ImageSize.fullsize) return maxZoomQuality()
   return requested
@@ -116,7 +116,7 @@ function ceiling (requested: ImageSize): ImageSize {
  * from `/original` for inline display stay inline, while a gif *download* from
  * the same endpoint gets the attachment header.
  */
-export function resolveImageEndpoint (requested: ImageSize, asset: Asset): ImageEndpoint {
+export function resolveImageEndpoint(requested: ImageSize, asset: Asset): ImageEndpoint {
   const attachment = requested === ImageSize.original
   // Thumbnail is the grid poster: served as-is, never clamped (a video/gif
   // thumbnail must stay a small still, not get promoted to the original file).
@@ -139,7 +139,10 @@ export function resolveImageEndpoint (requested: ImageSize, asset: Asset): Image
  * `asset.download` access, while `/video/playback` can still serve the
  * transcoded playback file that visitors are allowed to stream.
  */
-export function resolveDownloadEndpoint (asset: Asset, immichAllowsOriginalDownload = true): ImageEndpoint {
+export function resolveDownloadEndpoint(
+  asset: Asset,
+  immichAllowsOriginalDownload = true
+): ImageEndpoint {
   if (!immichAllowsOriginalDownload && isVideoAsset(asset)) {
     return { subpath: '/video/playback', attachment: true, servedSize: ImageSize.original }
   }
@@ -150,7 +153,7 @@ export function resolveDownloadEndpoint (asset: Asset, immichAllowsOriginalDownl
  * The one place that maps a (clamped) ImageSize onto a concrete Immich path,
  * and the only place that knows `fullsize` is per-asset.
  */
-function endpointFor (size: ImageSize, asset: Asset, attachment: boolean): ImageEndpoint {
+function endpointFor(size: ImageSize, asset: Asset, attachment: boolean): ImageEndpoint {
   switch (size) {
     case ImageSize.original:
       return { subpath: '/original', attachment, servedSize: ImageSize.original }
@@ -160,8 +163,18 @@ function endpointFor (size: ImageSize, asset: Asset, attachment: boolean): Image
       // (falls back to preview unless full-size generation is enabled in Immich).
       return isWebDisplayable(asset)
         ? { subpath: '/original', attachment, servedSize: ImageSize.original }
-        : { subpath: '/thumbnail', sizeQueryParam: 'fullsize', attachment, servedSize: ImageSize.fullsize }
+        : {
+            subpath: '/thumbnail',
+            sizeQueryParam: 'fullsize',
+            attachment,
+            servedSize: ImageSize.fullsize
+          }
     default: // preview
-      return { subpath: '/thumbnail', sizeQueryParam: 'preview', attachment, servedSize: ImageSize.preview }
+      return {
+        subpath: '/thumbnail',
+        sizeQueryParam: 'preview',
+        attachment,
+        servedSize: ImageSize.preview
+      }
   }
 }

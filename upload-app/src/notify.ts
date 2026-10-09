@@ -14,9 +14,9 @@ export interface UploadNotification {
   data: {
     event: 'upload'
     time: string
-    share: { type: 'album' | 'individual', id: string, title: string }
-    file: { name: string, size: number, type: string }
-    asset: { id: string, status: 'created' | 'duplicate' }
+    share: { type: 'album' | 'individual'; id: string; title: string }
+    file: { name: string; size: number; type: string }
+    asset: { id: string; status: 'created' | 'duplicate' }
   }
 }
 
@@ -25,10 +25,10 @@ export interface UploadNotification {
  * top level so a receiver expecting a flat shape shows something readable
  * with no mapping; everything structured lives under `data`.
  */
-export function buildNotification (
+export function buildNotification(
   share: SharedLink,
-  file: { name: string, size: number, type: string },
-  asset: { id: string, status: 'created' | 'duplicate' }
+  file: { name: string; size: number; type: string },
+  asset: { id: string; status: 'created' | 'duplicate' }
 ): UploadNotification {
   const isAlbum = share.type === AlbumType.album
   const shareTitle = title(share)
@@ -55,7 +55,7 @@ export function buildNotification (
  * no retry, failures logged and swallowed. Only the URL's host is logged,
  * because ntfy topics and Gotify tokens live in the URL.
  */
-export async function sendNotification (notification: UploadNotification): Promise<void> {
+export async function sendNotification(notification: UploadNotification): Promise<void> {
   const config = notifyConfig()
   if (!config) return
   try {
@@ -65,13 +65,19 @@ export async function sendNotification (notification: UploadNotification): Promi
       body: JSON.stringify(notification),
       signal: AbortSignal.timeout(config.timeoutMs)
     })
-    if (!res.ok) log.warn('Upload notification to ' + hostOf(config.url) + ' answered ' + res.status)
+    if (!res.ok)
+      log.warn('Upload notification to ' + hostOf(config.url) + ' answered ' + res.status)
   } catch (e) {
-    log.warn('Upload notification to ' + hostOf(config.url) + ' failed: ' + (e instanceof Error ? e.message : String(e)))
+    log.warn(
+      'Upload notification to ' +
+        hostOf(config.url) +
+        ' failed: ' +
+        (e instanceof Error ? e.message : String(e))
+    )
   }
 }
 
-function hostOf (url: string): string {
+function hostOf(url: string): string {
   try {
     return new URL(url).host
   } catch {

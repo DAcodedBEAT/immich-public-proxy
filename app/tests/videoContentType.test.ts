@@ -23,24 +23,42 @@ describe('getVideoContentType', () => {
   it('returns the content-type and cancels the unread video body', async () => {
     let cancelled = false
     const body = new ReadableStream({
-      pull (controller) { controller.enqueue(new Uint8Array(1024)) },
-      cancel () { cancelled = true }
+      pull(controller) {
+        controller.enqueue(new Uint8Array(1024))
+      },
+      cancel() {
+        cancelled = true
+      }
     })
-    vi.stubGlobal('fetch', vi.fn(async () => new globalThis.Response(body, {
-      status: 200,
-      headers: { 'content-type': 'video/mp4' }
-    })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new globalThis.Response(body, {
+            status: 200,
+            headers: { 'content-type': 'video/mp4' }
+          })
+      )
+    )
     expect(await getVideoContentType(video)).toBe('video/mp4')
     expect(cancelled).toBe(true)
   })
 
   it('returns undefined when Immich cannot serve the video #119', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new globalThis.Response('{"message":"Not found"}', { status: 404 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new globalThis.Response('{"message":"Not found"}', { status: 404 }))
+    )
     expect(await getVideoContentType(video)).toBeUndefined()
   })
 
   it('returns undefined when Immich is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed') }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('fetch failed')
+      })
+    )
     expect(await getVideoContentType(video)).toBeUndefined()
   })
 })

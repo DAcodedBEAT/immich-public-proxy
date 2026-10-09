@@ -16,7 +16,11 @@ describe('buildNotification', () => {
   })
 
   it('names an individual share by the link id', () => {
-    const payload = buildNotification(share({ type: AlbumType.individual, album: undefined, description: 'Some photos' }), file, asset)
+    const payload = buildNotification(
+      share({ type: AlbumType.individual, album: undefined, description: 'Some photos' }),
+      file,
+      asset
+    )
     expect(payload.data.share).toEqual({
       type: 'individual',
       id: 'ffffffff-0000-0000-0000-000000000001',
@@ -31,7 +35,13 @@ describe('buildNotification', () => {
   })
 
   it('never carries the share key, slug or password', () => {
-    const payload = JSON.stringify(buildNotification(share({ key: 'secret-key', slug: 'secret-slug', password: 'hunter2' }), file, asset))
+    const payload = JSON.stringify(
+      buildNotification(
+        share({ key: 'secret-key', slug: 'secret-slug', password: 'hunter2' }),
+        file,
+        asset
+      )
+    )
     expect(payload).not.toContain('secret-key')
     expect(payload).not.toContain('secret-slug')
     expect(payload).not.toContain('hunter2')

@@ -15,9 +15,9 @@ const formatCharsRe = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFE
  * when there is no extension: Immich types an asset by its extension and
  * would refuse it.
  */
-export function uploadFilename (raw: unknown, prefix: string): string | undefined {
+export function uploadFilename(raw: unknown, prefix: string): string | undefined {
   if (typeof raw !== 'string') return undefined
-  const base = (raw.normalize('NFC').replace(formatCharsRe, '').split(/[\\/]/).pop() || '')
+  const base = raw.normalize('NFC').replace(formatCharsRe, '').split(/[\\/]/).pop() || ''
   // Split the extension off first: `sanitize` truncates at 254 characters,
   // which on a very long name would cut the extension away.
   const parts = base.match(/^(.*)(\.[A-Za-z0-9]{1,16})$/)
