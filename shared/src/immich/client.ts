@@ -80,10 +80,10 @@ export function isKey(key: string) {
 }
 
 /**
- * Map the URL path prefix (`share` or `s`) to the corresponding `KeyType`.
+ * Map the URL path prefix (`share` or `s`, in any case) to the corresponding `KeyType`.
  */
 export function getKeyTypeFromShare(shareType: string) {
-  return shareType === 's' ? KeyType.slug : KeyType.key
+  return shareType.toLowerCase() === 's' ? KeyType.slug : KeyType.key
 }
 
 /**
