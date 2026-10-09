@@ -12,7 +12,15 @@
   skips a tag that an asset already has.
 */
 
-import 'dotenv/config'
+// Load .env into process.env, same as `dotenv/config` did - but env vars are
+// normally supplied by docker-compose, not a file, so a missing .env (the
+// common case) must stay a silent no-op rather than a startup crash.
+try {
+  process.loadEnvFile()
+} catch (e) {
+  if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+}
+
 import { resolve } from 'path'
 import { parseArgs } from 'util'
 import { apiUrl, loadConfig } from '@ipp/core'

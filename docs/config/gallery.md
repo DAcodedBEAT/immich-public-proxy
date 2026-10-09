@@ -43,13 +43,16 @@ Show the share's expiry date next to the item count in the subtitle, as `45 item
 
 **Type:** `string` · **Default:** `"YYYY-MM-DD"`
 
-Format for the [`showExpiryDate`](#showexpirydate) date, as a [dayjs format string](https://day.js.org/docs/en/display/format). The default is ISO 8601 (e.g. `2026-07-10`). Example: `"D MMMM YYYY"` renders `10 July 2026`. Name-based tokens (`MMMM`, `dddd`, ...) render in English unless you also set [`expiryDateLocale`](#expirydatelocale).
+Format for the [`showExpiryDate`](#showexpirydate) date, as a [dayjs-style format string](https://day.js.org/docs/en/display/format) using the tokens `YYYY`, `YY`, `MMMM`, `MMM`, `MM`, `M`, `DD`, `D`, `dddd`, `ddd`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `m`, `ss`, `s`, `SSS`, `Z`, `ZZ`, `A` and `a`, with literal text in `[brackets]`. The default is ISO 8601 (e.g. `2026-07-10`). Example: `"D MMMM YYYY"` renders `10 July 2026`. Name-based tokens (`MMMM`, `dddd`, ...) render in English unless you also set [`expiryDateLocale`](#expirydatelocale).
+
+> [!NOTE]
+> Names come from the server's built-in locale data, which matches dayjs for English, long month and weekday names (including the `10 июля` form after a day number in Russian, Polish, Ukrainian, ...) and `A`/`a`. Some short names differ: `MMM` (German `Jul`, not `Juli`; Ukrainian and Portuguese add a trailing dot; Swedish `juli`), `ddd` (German/Spanish/Dutch without the trailing dot; Russian/Ukrainian `пт`, not `птн`; Polish `pt.`) and `dd` (Polish lower-case, Portuguese `se`, not `6ª`). Russian `A` reads `ночи` rather than `вечера` late in the evening, and Ukrainian `пʼятниця` uses a different apostrophe.
 
 ## `expiryDateLocale`
 
 **Type:** `string` · **Default:** `""`
 
-Language for the [`showExpiryDate`](#showexpirydate) date when the format uses names (e.g. `MMMM` for month names), as a [dayjs locale code](https://github.com/iamkun/dayjs/tree/dev/src/locale) such as `"de"`, `"fr"` or `"en-gb"`. The default is English. The default numeric format needs no locale. The date-group headers from [`groupByDate`](#groupbydate) follow each visitor's own browser language instead.
+Language for the [`showExpiryDate`](#showexpirydate) date when the format uses names (e.g. `MMMM` for month names), as a [BCP 47 language tag](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl#locales_argument) such as `"de"`, `"fr"` or `"en-GB"`. The default is English, which is also used for a tag the server has no data for. The default numeric format needs no locale. The date-group headers from [`groupByDate`](#groupbydate) follow each visitor's own browser language instead.
 
 ## `showDownloadZip`
 
