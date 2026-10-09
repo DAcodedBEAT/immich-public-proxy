@@ -89,6 +89,10 @@ describe('uploadTimestamp', () => {
     expect(uploadTimestamp('2026-09-14T07:18:00.000Z')).toBe('2026-09-14T07:18:00.000Z')
   })
 
+  it('reads a zone-less timestamp as local time', () => {
+    expect(uploadTimestamp('2026-09-14 07:18')).toBe(new Date(2026, 8, 14, 7, 18).toISOString())
+  })
+
   it('falls back to now for junk or missing input', () => {
     for (const input of ['not a date', '', undefined, 42]) {
       expect(Number.isNaN(Date.parse(uploadTimestamp(input)))).toBe(false)

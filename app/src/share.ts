@@ -1,14 +1,17 @@
 import {
   Asset,
   AssetVisibility,
+  formatDate,
   getConfigOption,
+  isSupportedLocale,
+  isValidDate,
   KeyType,
   log,
+  parseDate,
   SharedLink,
   TtlLruCache
 } from '@ipp/core'
 import { DownloadAll } from './types'
-import dayjs from 'dayjs'
 
 /**
  * Decide whether the given shared link's download UI is shown (the "download
@@ -116,43 +119,32 @@ const DEFAULT_EXPIRY_FORMAT = 'YYYY-MM-DD'
  * feature is off, the share never expires, or the date can't be parsed.
  *
  * Gated by `ipp.gallery.showExpiryDate` (default `false`). Formatted with the
- * dayjs format string `ipp.gallery.expiryDateFormat` (default ISO 8601 date
- * `YYYY-MM-DD`, e.g. `2026-07-10`). Name-based tokens (e.g. `MMMM` -> "July")
- * render in the operator's `ipp.gallery.expiryDateLocale` when set, otherwise
- * dayjs's default English.
+ * dayjs-style token string `ipp.gallery.expiryDateFormat` (default ISO 8601
+ * date `YYYY-MM-DD`, e.g. `2026-07-10`; see `formatDate` in core for the
+ * supported tokens). Name-based tokens (e.g. `MMMM` -> "July") render in the
+ * operator's `ipp.gallery.expiryDateLocale` when set, otherwise English.
  */
 export function expiryDate(share: SharedLink): string | undefined {
   if (!getConfigOption('ipp.gallery.showExpiryDate', false)) return undefined
   if (!share.expiresAt) return undefined
-  const parsed = dayjs(share.expiresAt)
-  if (!parsed.isValid()) return undefined
+  const parsed = parseDate(share.expiresAt)
+  if (!isValidDate(parsed)) return undefined
   const configured = getConfigOption('ipp.gallery.expiryDateFormat', DEFAULT_EXPIRY_FORMAT)
   const format = typeof configured === 'string' && configured ? configured : DEFAULT_EXPIRY_FORMAT
-  const locale = expiryDateLocale()
-  return (locale ? parsed.locale(locale) : parsed).format(format)
+  return formatDate(parsed, format, expiryDateLocale())
 }
 
 /**
- * Resolve and lazily load the dayjs locale named by `ipp.gallery.expiryDateLocale`
- * so name-based expiry tokens localise. Returns the locale name to apply, or
- * undefined to keep dayjs's default (English) - including when the value is not
- * a valid, bundled dayjs locale. Node caches the require, so repeat lookups for
- * the same locale are cheap.
+ * Resolve the locale named by `ipp.gallery.expiryDateLocale` so name-based
+ * expiry tokens localise. Returns the configured value when Intl accepts it as
+ * a well-formed tag, or undefined to keep the default (English) - including
+ * when the value is malformed. A well-formed tag Intl has no data for also
+ * renders in English.
  */
 function expiryDateLocale(): string | undefined {
   const configured = getConfigOption('ipp.gallery.expiryDateLocale', '')
   if (typeof configured !== 'string' || !configured) return undefined
-  // dayjs locale files are lowercase (e.g. `en-gb.js`); normalise `en-GB` etc.
-  const name = configured.toLowerCase()
-  // Constrain to dayjs-shaped locale names (e.g. `de`, `en-gb`, `pt-br`); this
-  // also blocks the config value from reaching require() as a traversal path.
-  if (!/^[a-z]{2,3}(-[a-z]{2,4})?$/.test(name)) return undefined
-  try {
-    require('dayjs/locale/' + name)
-    return name
-  } catch {
-    return undefined
-  }
+  return isSupportedLocale(configured) ? configured : undefined
 }
 
 /**

@@ -1,7 +1,14 @@
 import { pipeline } from 'stream'
 import { Request, Response } from 'express-serve-static-core'
-import dayjs from 'dayjs'
-import { abortOnClose, KeyType, log, respondToInvalidRequest, SharedLink } from '@ipp/core'
+import {
+  abortOnClose,
+  isValidDate,
+  KeyType,
+  log,
+  parseDate,
+  respondToInvalidRequest,
+  SharedLink
+} from '@ipp/core'
 import { byteBudget, filenamePrefix, maxFileSize, rateLimit } from './config'
 import { uploadFilename } from './filename'
 import { forwardUpload } from './forward'
@@ -49,8 +56,8 @@ export function declaredLength(header: string | undefined): number | undefined {
  * point: Immich replaces it from EXIF when the file carries a better date.
  */
 export function uploadTimestamp(raw: unknown): string {
-  const parsed = typeof raw === 'string' && raw ? dayjs(raw) : undefined
-  return (parsed?.isValid() ? parsed : dayjs()).toISOString()
+  const parsed = typeof raw === 'string' && raw ? parseDate(raw) : undefined
+  return (parsed && isValidDate(parsed) ? parsed : new Date()).toISOString()
 }
 
 /**
