@@ -48,7 +48,8 @@ failure with a retry button instead. `0` turns the limit off. A request the serv
 size or type, does not count.
 
 The address is the one that connects to the service. Behind a reverse proxy every visitor has the proxy's address, so
-the limit covers each share as a whole.
+the limit covers each share as a whole, unless
+[`IPP_TRUST_PROXY`](/config/environment-variables#ipp-trust-proxy) is set.
 
 ## `byteBudget`
 
