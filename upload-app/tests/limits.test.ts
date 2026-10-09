@@ -45,7 +45,7 @@ describe('createWindowBudget as a byte budget', () => {
     expect(budget('share', 40).ok).toBe(true)
   })
 
-  it('gives a failed upload\'s reservation back, once', () => {
+  it("gives a failed upload's reservation back, once", () => {
     const budget = createWindowBudget({ limit: 100, windowMs: 3_600_000 })
     const first = budget('share', 80)
     expect(budget('share', 80).ok).toBe(false)

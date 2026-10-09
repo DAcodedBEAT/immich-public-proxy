@@ -1,14 +1,20 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { getImmichVersion, isImmichVersionSupported, MIN_IMMICH_VERSION } from '../src/immich/client'
+import {
+  getImmichVersion,
+  isImmichVersionSupported,
+  MIN_IMMICH_VERSION
+} from '../src/immich/client'
 
 // The startup guard that refuses to run against an Immich server older than
 // IPP supports (3.0.0).
 
-function jsonResponse (body: unknown, status = 200) {
+function jsonResponse(body: unknown, status = 200) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: { get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null) },
+    headers: {
+      get: (h: string) => (h.toLowerCase() === 'content-type' ? 'application/json' : null)
+    },
     json: async () => body,
     text: async () => JSON.stringify(body)
   }
@@ -41,20 +47,32 @@ describe('getImmichVersion', () => {
   })
 
   it('parses the /server/version response', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.includes('/server/version')) return jsonResponse({ major: 3, minor: 0, patch: 2, prerelease: null })
-      throw new Error('Unexpected fetch to ' + url)
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/server/version'))
+          return jsonResponse({ major: 3, minor: 0, patch: 2, prerelease: null })
+        throw new Error('Unexpected fetch to ' + url)
+      })
+    )
     expect(await getImmichVersion()).toEqual({ major: 3, minor: 0, patch: 2 })
   })
 
   it('returns null when Immich is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('ECONNREFUSED') }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED')
+      })
+    )
     expect(await getImmichVersion()).toBeNull()
   })
 
   it('returns null on an unexpected response shape', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ version: 'v3.0.2' })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ version: 'v3.0.2' }))
+    )
     expect(await getImmichVersion()).toBeNull()
   })
 })

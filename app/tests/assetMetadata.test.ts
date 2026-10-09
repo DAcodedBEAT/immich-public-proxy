@@ -7,7 +7,7 @@ import { removedMetadataSwitches } from '../src/gallery/exif'
 // per-item baking; it must apply the same showMetadata kill-switch and
 // ipp.showMetadata.* gating so nothing leaks that the operator didn't opt into.
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }
@@ -70,8 +70,13 @@ describe('buildAssetMetadata', () => {
   })
 
   it('finds the removed metadata master switches, whatever their value', () => {
-    setConfig({ ipp: { showMetadata: { exif: { enabled: false, gps: true }, location: { enabled: true } } } })
-    expect(removedMetadataSwitches()).toEqual(['ipp.showMetadata.exif.enabled', 'ipp.showMetadata.location.enabled'])
+    setConfig({
+      ipp: { showMetadata: { exif: { enabled: false, gps: true }, location: { enabled: true } } }
+    })
+    expect(removedMetadataSwitches()).toEqual([
+      'ipp.showMetadata.exif.enabled',
+      'ipp.showMetadata.location.enabled'
+    ])
 
     setConfig({ ipp: { showMetadata: { exif: { make: true } } } })
     expect(removedMetadataSwitches()).toEqual([])

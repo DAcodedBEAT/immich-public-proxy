@@ -1,4 +1,12 @@
-import { Asset, AssetVisibility, getConfigOption, KeyType, log, SharedLink, TtlLruCache } from '@ipp/core'
+import {
+  Asset,
+  AssetVisibility,
+  getConfigOption,
+  KeyType,
+  log,
+  SharedLink,
+  TtlLruCache
+} from '@ipp/core'
 import { DownloadAll } from './types'
 import dayjs from 'dayjs'
 
@@ -9,13 +17,17 @@ import dayjs from 'dayjs'
  * per-share Immich setting, or always allowed. This is purely a UI gate - it
  * does not affect image quality (see `gallery/sizing.ts`).
  */
-export function canDownload (share: SharedLink): boolean {
+export function canDownload(share: SharedLink): boolean {
   const policy = getConfigOption('ipp.allowDownload', DownloadAll.disabled)
   if (policy === DownloadAll.always) return true
   if (policy === DownloadAll.perImmich) return !!share.allowDownload
   if (policy !== DownloadAll.disabled && !warnedInvalidDownloadPolicy) {
     warnedInvalidDownloadPolicy = true
-    log.warn('ipp.allowDownload is ' + JSON.stringify(policy) + ', which is not 0, 1 or 2. Downloads are off.')
+    log.warn(
+      'ipp.allowDownload is ' +
+        JSON.stringify(policy) +
+        ', which is not 0, 1 or 2. Downloads are off.'
+    )
   }
   return false
 }
@@ -31,7 +43,7 @@ const DEFAULT_UPLOAD_URL = '/upload'
  * IPP's hostname such as the default `/upload`. Undefined when the option is
  * empty, so the button is off, or not one of those two forms.
  */
-export function uploadBase (): string | undefined {
+export function uploadBase(): string | undefined {
   const configured = getConfigOption('ipp.uploadUrl', DEFAULT_UPLOAD_URL)
   if (typeof configured !== 'string') return undefined
   const base = configured.trim().replace(/\/+$/, '')
@@ -49,7 +61,7 @@ export function uploadBase (): string | undefined {
  * no upload container. An absolute URL is the owner's word and is trusted; a
  * cross-origin check would need CORS headers anyway.
  */
-export function uploadHealthcheck (): string | undefined {
+export function uploadHealthcheck(): string | undefined {
   const base = uploadBase()
   return base && !/^https?:/i.test(base) ? base + '/healthcheck' : undefined
 }
@@ -60,7 +72,7 @@ export function uploadHealthcheck (): string | undefined {
  * not turned on "Allow public user to upload". A share opened by its slug
  * links by its slug, so the upload service resolves it the same way.
  */
-export function uploadLink (share: SharedLink): string | undefined {
+export function uploadLink(share: SharedLink): string | undefined {
   const base = uploadBase()
   if (!share.allowUpload || !base) return undefined
   return share.keyType === KeyType.slug && share.slug
@@ -79,15 +91,19 @@ const warnedUnprocessed = new TtlLruCache<true>({ ttlMs: 24 * 60 * 60_000, max: 
  * files and only then sets it, so until it appears every image URL IPP hands
  * out would 404.
  */
-export function servableAssets (assets: Asset[]): Asset[] {
+export function servableAssets(assets: Asset[]): Asset[] {
   return assets.filter(asset => {
     if (asset.isTrashed) return false
     if (asset.visibility === AssetVisibility.locked) return false
     if (asset.thumbhash) return true
     if (!warnedUnprocessed.get(asset.id)) {
       warnedUnprocessed.set(asset.id, true)
-      log.warn('Asset ' + asset.id + ' is hidden because Immich has not generated its thumbnail yet. ' +
-        'If it never appears, check the thumbnail job for that asset in Immich.')
+      log.warn(
+        'Asset ' +
+          asset.id +
+          ' is hidden because Immich has not generated its thumbnail yet. ' +
+          'If it never appears, check the thumbnail job for that asset in Immich.'
+      )
     }
     return false
   })
@@ -105,7 +121,7 @@ const DEFAULT_EXPIRY_FORMAT = 'YYYY-MM-DD'
  * render in the operator's `ipp.gallery.expiryDateLocale` when set, otherwise
  * dayjs's default English.
  */
-export function expiryDate (share: SharedLink): string | undefined {
+export function expiryDate(share: SharedLink): string | undefined {
   if (!getConfigOption('ipp.gallery.showExpiryDate', false)) return undefined
   if (!share.expiresAt) return undefined
   const parsed = dayjs(share.expiresAt)
@@ -123,7 +139,7 @@ export function expiryDate (share: SharedLink): string | undefined {
  * a valid, bundled dayjs locale. Node caches the require, so repeat lookups for
  * the same locale are cheap.
  */
-function expiryDateLocale (): string | undefined {
+function expiryDateLocale(): string | undefined {
   const configured = getConfigOption('ipp.gallery.expiryDateLocale', '')
   if (typeof configured !== 'string' || !configured) return undefined
   // dayjs locale files are lowercase (e.g. `en-gb.js`); normalise `en-GB` etc.
@@ -144,7 +160,7 @@ function expiryDateLocale (): string | undefined {
  * clip is a hidden asset that Immich authorises under the same share key;
  * requiring a shared still to point at it keeps the ids IPP serves bounded.
  */
-export function findMotionPhotoStill (share: SharedLink, clipId: string): Asset | undefined {
+export function findMotionPhotoStill(share: SharedLink, clipId: string): Asset | undefined {
   if (!clipId) return undefined
   return share.assets.find(asset => asset.livePhotoVideoId === clipId)
 }

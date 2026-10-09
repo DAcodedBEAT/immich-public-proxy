@@ -5,7 +5,7 @@ import { canDownload } from '../src/share'
 // canDownload gates the download UI on ipp.allowDownload: 0 off, 1 follow the
 // Immich share's toggle, 2 always. Anything else fails closed.
 
-function setConfig (config: unknown) {
+function setConfig(config: unknown) {
   process.env.CONFIG = JSON.stringify(config)
   loadConfig()
 }

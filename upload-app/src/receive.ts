@@ -2,7 +2,14 @@ import { pipeline } from 'stream'
 import { Request, Response } from 'express-serve-static-core'
 import dayjs from 'dayjs'
 import { abortOnClose, KeyType, log, respondToInvalidRequest, SharedLink } from '@ipp/core'
-import { askName, byteBudget, fieldSeparator, filenamePrefix, maxFileSize, rateLimit } from './config'
+import {
+  askName,
+  byteBudget,
+  fieldSeparator,
+  filenamePrefix,
+  maxFileSize,
+  rateLimit
+} from './config'
 import { uploaderSlug, uploadFilename } from './filename'
 import { forwardUpload } from './forward'
 import { authoriseUpload } from './gate'
@@ -28,19 +35,19 @@ import { formatSize, isUploadableName, isUploadableType } from './shared/upload'
   has to keep spending real bandwidth to do so.
 */
 const BODY_IDLE_MS = 60_000
-const BODY_MIN_BYTES_PER_INTERVAL = 8 * 1024 * BODY_IDLE_MS / 1000
+const BODY_MIN_BYTES_PER_INTERVAL = (8 * 1024 * BODY_IDLE_MS) / 1000
 
 /**
  * Answer an upload the server will not take, in the shape the page reads.
  * The connection closes after it (see `index.ts`), so a body still in flight
  * stops costing its full bandwidth.
  */
-function refuse (res: Response, status: number, reason: string): void {
+function refuse(res: Response, status: number, reason: string): void {
   res.status(status).json({ error: reason })
 }
 
 /** The declared `Content-Length`, or undefined when absent or malformed. */
-export function declaredLength (header: string | undefined): number | undefined {
+export function declaredLength(header: string | undefined): number | undefined {
   return header && /^\d+$/.test(header) ? Number(header) : undefined
 }
 
@@ -48,7 +55,7 @@ export function declaredLength (header: string | undefined): number | undefined 
  * Parse a visitor-supplied timestamp, falling back to now. Only a starting
  * point: Immich replaces it from EXIF when the file carries a better date.
  */
-export function uploadTimestamp (raw: unknown): string {
+export function uploadTimestamp(raw: unknown): string {
   const parsed = typeof raw === 'string' && raw ? dayjs(raw) : undefined
   return (parsed?.isValid() ? parsed : dayjs()).toISOString()
 }
@@ -60,7 +67,7 @@ export function uploadTimestamp (raw: unknown): string {
  * Once the share has passed the gate, failures a visitor can act on answer
  * with a status and a short JSON reason rather than the 404 policy.
  */
-export function createUploadReceiver () {
+export function createUploadReceiver() {
   // Keyed on address and share; behind a reverse proxy every visitor has the proxy's address
   const rate = createWindowBudget({ limit: rateLimit(), windowMs: 60_000 })
   const budget = createWindowBudget({ limit: byteBudget(), windowMs: 60 * 60_000 })
@@ -69,7 +76,12 @@ export function createUploadReceiver () {
   const withName = askName()
   const separator = fieldSeparator()
 
-  return async function receiveUpload (req: Request, res: Response, link: SharedLink, keyType: KeyType): Promise<void> {
+  return async function receiveUpload(
+    req: Request,
+    res: Response,
+    link: SharedLink,
+    keyType: KeyType
+  ): Promise<void> {
     const key = req.params.key
     const permit = authoriseUpload(link, key, keyType, req.password)
     if (!permit) {
@@ -123,17 +135,28 @@ export function createUploadReceiver () {
       return
     }
 
-    const body = pipeline(req, createIdleTimeoutStream(BODY_IDLE_MS, BODY_MIN_BYTES_PER_INTERVAL), err => {
-      if (err instanceof IdleTimeoutError) log('Dropped upload ' + filename + ': too little received in ' + BODY_IDLE_MS / 1000 + ' s')
-    })
-    const result = await forwardUpload(permit, {
-      filename,
-      mimeType,
-      fileCreatedAt: uploadTimestamp(req.query.fileCreatedAt),
-      fileModifiedAt: uploadTimestamp(req.query.fileModifiedAt),
-      body,
-      maxBytes: length
-    }, abortOnClose(res))
+    const body = pipeline(
+      req,
+      createIdleTimeoutStream(BODY_IDLE_MS, BODY_MIN_BYTES_PER_INTERVAL),
+      err => {
+        if (err instanceof IdleTimeoutError)
+          log(
+            'Dropped upload ' + filename + ': too little received in ' + BODY_IDLE_MS / 1000 + ' s'
+          )
+      }
+    )
+    const result = await forwardUpload(
+      permit,
+      {
+        filename,
+        mimeType,
+        fileCreatedAt: uploadTimestamp(req.query.fileCreatedAt),
+        fileModifiedAt: uploadTimestamp(req.query.fileModifiedAt),
+        body,
+        maxBytes: length
+      },
+      abortOnClose(res)
+    )
 
     if (!result.ok) {
       reserved.release()
@@ -143,15 +166,25 @@ export function createUploadReceiver () {
       return
     }
 
-    log('Received upload ' + filename + ' for share ' + (link.slug || link.id) + ' (Immich result: ' + result.status + ')')
+    log(
+      'Received upload ' +
+        filename +
+        ' for share ' +
+        (link.slug || link.id) +
+        ' (Immich result: ' +
+        result.status +
+        ')'
+    )
     res.json({ status: result.status })
 
     // After the reply, so a slow webhook never holds up the visitor
-    sendNotification(buildNotification(
-      link,
-      { name: filename, size: result.bytes, type: mimeType },
-      { id: result.id, status: result.status },
-      uploader
-    ))
+    sendNotification(
+      buildNotification(
+        link,
+        { name: filename, size: result.bytes, type: mimeType },
+        { id: result.id, status: result.status },
+        uploader
+      )
+    )
   }
 }

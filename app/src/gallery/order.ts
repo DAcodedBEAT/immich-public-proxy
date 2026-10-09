@@ -12,7 +12,7 @@ import type { GroupByDateMode } from '../shared/types'
  *
  * Sorts in place and returns the same array.
  */
-export function displayOrder (assets: Asset[], albumOrder?: string): Asset[] {
+export function displayOrder(assets: Asset[], albumOrder?: string): Asset[] {
   if (groupByDateMode()) {
     assets.sort(dateSortComparator(albumOrder))
   } else if (albumOrder === 'asc' || albumOrder === 'desc') {
@@ -33,7 +33,10 @@ const captureTime = (a: Asset) => a.fileCreatedAt || ''
  * Undated assets always sort last regardless of direction, so the client's
  * "Undated" group renders at the bottom and the order is consistent.
  */
-export function dateSortComparator (order?: string, key: (a: Asset) => string = localTime): (a: Asset, b: Asset) => number {
+export function dateSortComparator(
+  order?: string,
+  key: (a: Asset) => string = localTime
+): (a: Asset, b: Asset) => number {
   const ascending = order === 'asc'
   return (a, b) => {
     const ka = key(a)
@@ -48,7 +51,7 @@ export function dateSortComparator (order?: string, key: (a: Asset) => string = 
  * mode. Accepts `false` (off), `true` / `'month'` (legacy = month buckets) or
  * `'day'` (day buckets); anything else is treated as off.
  */
-export function groupByDateMode (): GroupByDateMode | false {
+export function groupByDateMode(): GroupByDateMode | false {
   const v = getConfigOption('ipp.gallery.groupByDate', false)
   if (v === 'day') return 'day'
   if (v === true || v === 'month') return 'month'

@@ -2,7 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AssetType } from '@ipp/core'
 import type { Asset } from '@ipp/core'
 import { ImageSize } from '../src/types'
-import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint, requiresOriginal } from '../src/gallery/sizing'
+import {
+  isVideoAsset,
+  resolveDownloadEndpoint,
+  resolveImageEndpoint,
+  requiresOriginal
+} from '../src/gallery/sizing'
 
 /*
   resolveImageEndpoint reads `ipp.maxDownloadQuality` and `ipp.maxZoomQuality`
@@ -11,13 +16,12 @@ import { isVideoAsset, resolveDownloadEndpoint, resolveImageEndpoint, requiresOr
   imports, so the mock is in place by the time sizing.ts resolves @ipp/core.
 */
 const cfg: Record<string, unknown> = {}
-vi.mock('@ipp/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@ipp/core')>(),
-  getConfigOption: (path: string, fallback?: unknown) =>
-    path in cfg ? cfg[path] : fallback
+vi.mock('@ipp/core', async importOriginal => ({
+  ...(await importOriginal<typeof import('@ipp/core')>()),
+  getConfigOption: (path: string, fallback?: unknown) => (path in cfg ? cfg[path] : fallback)
 }))
 
-function asset (overrides: Partial<Asset> = {}): Asset {
+function asset(overrides: Partial<Asset> = {}): Asset {
   return {
     id: 'a',
     key: 'k',
@@ -61,7 +65,9 @@ describe('thumbnail - always the grid poster, never clamped', () => {
   it('serves thumbnail as-is for every asset type', () => {
     for (const a of [jpeg, heic, gif, video, videoMimeImage]) {
       expect(resolveImageEndpoint(ImageSize.thumbnail, a)).toEqual({
-        subpath: '/thumbnail', attachment: false, servedSize: ImageSize.thumbnail
+        subpath: '/thumbnail',
+        attachment: false,
+        servedSize: ImageSize.thumbnail
       })
     }
   })
@@ -72,7 +78,10 @@ describe('preview', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     cfg['ipp.maxZoomQuality'] = 'preview'
     expect(resolveImageEndpoint(ImageSize.preview, jpeg)).toEqual({
-      subpath: '/thumbnail', sizeQueryParam: 'preview', attachment: false, servedSize: ImageSize.preview
+      subpath: '/thumbnail',
+      sizeQueryParam: 'preview',
+      attachment: false,
+      servedSize: ImageSize.preview
     })
   })
 })
@@ -80,14 +89,19 @@ describe('preview', () => {
 describe('original (download tier, gated by maxDownloadQuality)', () => {
   it('default (maxDownloadQuality unset => original) serves /original as attachment', () => {
     expect(resolveImageEndpoint(ImageSize.original, jpeg)).toEqual({
-      subpath: '/original', attachment: true, servedSize: ImageSize.original
+      subpath: '/original',
+      attachment: true,
+      servedSize: ImageSize.original
     })
   })
 
   it('maxDownloadQuality=preview downgrades to preview, still an attachment (intent=download)', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     expect(resolveImageEndpoint(ImageSize.original, jpeg)).toEqual({
-      subpath: '/thumbnail', sizeQueryParam: 'preview', attachment: true, servedSize: ImageSize.preview
+      subpath: '/thumbnail',
+      sizeQueryParam: 'preview',
+      attachment: true,
+      servedSize: ImageSize.preview
     })
   })
 })
@@ -100,14 +114,19 @@ describe('fullsize (zoom tier, gated by maxZoomQuality)', () => {
   it('web format: fullsize resolves to the original bytes, served inline (no attachment)', () => {
     cfg['ipp.maxZoomQuality'] = 'fullsize'
     expect(resolveImageEndpoint(ImageSize.fullsize, jpeg)).toEqual({
-      subpath: '/original', attachment: false, servedSize: ImageSize.original
+      subpath: '/original',
+      attachment: false,
+      servedSize: ImageSize.original
     })
   })
 
   it('non-web format: fullsize resolves to the converted JPEG via ?size=fullsize', () => {
     cfg['ipp.maxZoomQuality'] = 'fullsize'
     expect(resolveImageEndpoint(ImageSize.fullsize, heic)).toEqual({
-      subpath: '/thumbnail', sizeQueryParam: 'fullsize', attachment: false, servedSize: ImageSize.fullsize
+      subpath: '/thumbnail',
+      sizeQueryParam: 'fullsize',
+      attachment: false,
+      servedSize: ImageSize.fullsize
     })
   })
 })
@@ -137,14 +156,18 @@ describe('download endpoint', () => {
   it('keeps videos on /original when Immich allows original downloads', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     expect(resolveDownloadEndpoint(video, true)).toEqual({
-      subpath: '/original', attachment: true, servedSize: ImageSize.original
+      subpath: '/original',
+      attachment: true,
+      servedSize: ImageSize.original
     })
   })
 
   it('falls back to video playback when Immich blocks original downloads', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     expect(resolveDownloadEndpoint(video, false)).toEqual({
-      subpath: '/video/playback', attachment: true, servedSize: ImageSize.original
+      subpath: '/video/playback',
+      attachment: true,
+      servedSize: ImageSize.original
     })
     expect(resolveDownloadEndpoint(videoMimeImage, false).subpath).toBe('/video/playback')
   })
@@ -152,14 +175,19 @@ describe('download endpoint', () => {
   it('keeps image downloads on the maxDownloadQuality policy', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     expect(resolveDownloadEndpoint(jpeg, false)).toEqual({
-      subpath: '/thumbnail', sizeQueryParam: 'preview', attachment: true, servedSize: ImageSize.preview
+      subpath: '/thumbnail',
+      sizeQueryParam: 'preview',
+      attachment: true,
+      servedSize: ImageSize.preview
     })
   })
 
   it('keeps animated image downloads on /original', () => {
     cfg['ipp.maxDownloadQuality'] = 'preview'
     expect(resolveDownloadEndpoint(gif, false)).toEqual({
-      subpath: '/original', attachment: true, servedSize: ImageSize.original
+      subpath: '/original',
+      attachment: true,
+      servedSize: ImageSize.original
     })
   })
 })
