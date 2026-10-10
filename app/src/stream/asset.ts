@@ -43,14 +43,9 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     // that don't (wget, right-click "Save As", link unfurlers) get the
     // full file with 200 OK; otherwise they'd save a truncated 2.5 MB
     // partial response as the whole video.
-    if (req.range) {
-      const range = req.range.replace(/bytes=/, '').split('-')
-      const start = parseInt(range[0], 10) || 0
-      const end = parseInt(range[1], 10) || start + 2499999
-      fetchHeaders.range = `bytes=${start}-${end}`
-      headerList.push('cache-control', 'content-range')
-      res.status(206) // Partial Content
-    }
+    // The status follows Immich's answer below, never the request alone.
+    const range = req.range ? upstreamRange(req.range) : undefined
+    if (range) fetchHeaders.range = range
   } else {
     // Album "grid" items arrive without originalMimeType. The fullsize tier
     // needs it to pick /original (web formats) vs ?size=fullsize (RAW/HEIF), so
@@ -98,6 +93,11 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
     const position = share && findPositionInShare(share, asset.id)
     res.setHeader('Content-Disposition', attachmentDisposition(getFilename(named, servedSize, servedMimeFrom(subpath, data), position)))
   }
+  // 206 only when Immich honoured the range; a 200 is the whole file
+  if (fetchHeaders.range && data.status === 206) {
+    res.status(206) // Partial Content
+    headerList.push('cache-control', 'content-range')
+  }
   headerList.forEach(header => {
     const value = data.headers.get(header)
     if (value) res.setHeader(header, value)
@@ -124,6 +124,24 @@ export async function assetBuffer (req: IncomingShareRequest, res: Response, ass
       log.warn(`Stream from Immich failed for asset ${asset.id}: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
+}
+
+/**
+ * Translate a client `Range` header into the one sent to Immich, or undefined
+ * to ignore it and serve the whole file, which RFC 9110 allows for any Range.
+ * A single `first-last` range passes through, an open-ended `first-` is capped
+ * to one 2.5 MB chunk, and a suffix `-N` stays the last N bytes. A malformed,
+ * reversed, empty suffix or multi-range header is ignored.
+ */
+export function upstreamRange (clientRange: string): string | undefined {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(clientRange.trim())
+  if (!match) return undefined
+  const start = match[1] === '' ? undefined : Number(match[1])
+  const end = match[2] === '' ? undefined : Number(match[2])
+  if (![start, end].every(n => n === undefined || Number.isSafeInteger(n))) return undefined
+  if (start === undefined) return end ? `bytes=-${end}` : undefined
+  if (end === undefined) return `bytes=${start}-${start + 2499999}`
+  return end >= start ? `bytes=${start}-${end}` : undefined
 }
 
 /**
