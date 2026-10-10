@@ -1,4 +1,5 @@
 import { AlbumType, log, SharedLink, title } from '@ipp/core'
+import type { Attribution } from './attribution'
 import { formatSize } from './shared/upload'
 import { notifyConfig } from './config'
 
@@ -17,6 +18,10 @@ export interface UploadNotification {
     share: { type: 'album' | 'individual'; id: string; title: string }
     file: { name: string; size: number; type: string }
     asset: { id: string; status: 'created' | 'duplicate' }
+    /** The visitor's name, with the attribution layer on and a name given. */
+    uploader?: string
+    /** The visitor's caption, with the attribution layer on and a caption given. */
+    caption?: string
   }
 }
 
@@ -28,13 +33,16 @@ export interface UploadNotification {
 export function buildNotification(
   share: SharedLink,
   file: { name: string; size: number; type: string },
-  asset: { id: string; status: 'created' | 'duplicate' }
+  asset: { id: string; status: 'created' | 'duplicate' },
+  attribution: Attribution = {}
 ): UploadNotification {
   const isAlbum = share.type === AlbumType.album
   const shareTitle = title(share)
   return {
     title: 'Photo sent to ' + shareTitle,
-    message: `${file.name} (${formatSize(file.size)}) was uploaded to ${shareTitle}.`,
+    message:
+      `${file.name} (${formatSize(file.size)}) was uploaded to ${shareTitle}` +
+      (attribution.uploader ? ` by ${attribution.uploader}.` : '.'),
     data: {
       event: 'upload',
       time: new Date().toISOString(),
@@ -45,7 +53,9 @@ export function buildNotification(
         title: shareTitle
       },
       file,
-      asset
+      asset,
+      ...(attribution.uploader && { uploader: attribution.uploader }),
+      ...(attribution.caption && { caption: attribution.caption })
     }
   }
 }

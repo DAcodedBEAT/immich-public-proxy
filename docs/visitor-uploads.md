@@ -8,6 +8,9 @@ choose to [review them first](/tag-and-review-uploads#review-uploads-before-they
 > No Immich API key is needed: each file is sent with the share's own key, so Immich itself decides whether that share accepts uploads.
 > 
 > Visitors have no access to Immich; the upload service streams each file through and stores nothing.
+>
+> An optional API key lets the service record who sent each photo. See
+> [Record who sent each photo](/tag-and-review-uploads#record-who-sent-each-photo) for what that costs.
 
 ## Contents
 
@@ -337,6 +340,11 @@ they reach the gallery, use a [review workflow](/tag-and-review-uploads#review-u
 
 No. The upload page shows nothing from the share, only the visitor's own uploads in progress, and nothing can be
 deleted or edited from it. The owner manages uploads in Immich.
+
+### Can I see who sent each photo
+
+Only if you give the upload service an API key, which is off by default. See
+[Record who sent each photo](/tag-and-review-uploads#record-who-sent-each-photo).
 
 ### Why is uploading a separate container
 

@@ -38,6 +38,44 @@ const noteEl = document.getElementById('upload-note') as HTMLElement
 const listEl = document.getElementById('upload-list') as HTMLElement
 const dropEl = document.getElementById('upload-drop') as HTMLElement
 
+const nameEl = document.getElementById('upload-name') as HTMLInputElement | null
+const captionEl = document.getElementById('upload-caption') as HTMLTextAreaElement | null
+
+// The visitor's name, remembered for their next visit to any share
+const NAME_STORAGE_KEY = 'ipp-upload-name'
+
+/** localStorage can be absent or throw (private mode, blocked storage); the name is only a convenience. */
+function rememberedName(): string {
+  try {
+    return localStorage.getItem(NAME_STORAGE_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+function rememberName(name: string) {
+  try {
+    if (name) localStorage.setItem(NAME_STORAGE_KEY, name)
+    else localStorage.removeItem(NAME_STORAGE_KEY)
+  } catch {}
+}
+
+/**
+ * The name and caption to send with the files being queued now, as query
+ * parameters. Empty unless the server enables attribution. Read once per
+ * batch, so a retry sends what the file was queued with.
+ */
+function attributionParams(): Record<string, string> {
+  if (!config.attribution) return {}
+  const params: Record<string, string> = {}
+  const name = nameEl?.value.trim() || ''
+  const caption = captionEl?.value.trim() || ''
+  rememberName(name)
+  if (name) params.uploaderName = name
+  if (caption) params.caption = caption
+  return params
+}
+
 type RowState = 'pending' | 'started' | 'done' | 'duplicate' | 'error'
 
 const STATE_ICONS: Record<RowState, string> = {
@@ -51,6 +89,8 @@ const STATE_ICONS: Record<RowState, string> = {
 interface UploadRow {
   file: File
   type: string
+  /** Extra query parameters: the visitor's name and caption, when given. */
+  extra: Record<string, string>
   li: HTMLLIElement
   icon: HTMLElement
   action: HTMLButtonElement
@@ -141,7 +181,7 @@ function finish(
 }
 
 /** Build the panel row for one file: status icon, name, and its button. */
-function addRow(file: File, type: string): UploadRow {
+function addRow(file: File, type: string, extra: Record<string, string>): UploadRow {
   const li = document.createElement('li')
   li.className = 'upload-row'
   const line = document.createElement('div')
@@ -158,7 +198,7 @@ function addRow(file: File, type: string): UploadRow {
   li.appendChild(line)
   listEl.appendChild(li)
 
-  const row: UploadRow = { file, type, li, icon, action, cancelled: false }
+  const row: UploadRow = { file, type, extra, li, icon, action, cancelled: false }
   setState(row, 'pending')
   setAction(row, 'cancel')
   action.addEventListener('click', () => {
@@ -216,7 +256,8 @@ function attempt(row: UploadRow, attemptNumber: number): Promise<Attempt> {
     const query = new URLSearchParams({
       filename: row.file.name,
       fileCreatedAt: timestamp,
-      fileModifiedAt: timestamp
+      fileModifiedAt: timestamp,
+      ...row.extra
     })
     const xhr = new XMLHttpRequest()
     row.xhr = xhr
@@ -321,9 +362,10 @@ function queueFiles(files: File[]) {
   if (!files.length) return
   startBatchIfIdle()
   panelEl.hidden = false
+  const extra = attributionParams()
   for (const file of files) {
     const type = fileType(file.name, file.type)
-    const row = addRow(file, type)
+    const row = addRow(file, type, extra)
     stats.total++
     if (!isUploadableType(type) || !isUploadableName(file.name)) {
       finish(row, 'error', 'Only photos and videos can be sent')
@@ -367,6 +409,8 @@ function setupDragAndDrop() {
     queueFiles(Array.from(e.dataTransfer?.files || []))
   })
 }
+
+if (nameEl && !nameEl.value) nameEl.value = rememberedName()
 
 const input = document.getElementById('upload-input') as HTMLInputElement
 document.getElementById('upload-choose')?.addEventListener('click', () => input.click())

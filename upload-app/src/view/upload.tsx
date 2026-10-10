@@ -1,6 +1,11 @@
 import { jsonForInlineScript, ThemeScript } from '@ipp/core'
 import { ICON_ARROW_LEFT, ICON_CLOUD_UPLOAD } from '../shared/icons'
-import { UPLOAD_ACCEPT, UploadPageConfig } from '../shared/upload'
+import {
+  CAPTION_MAX_LENGTH,
+  UPLOAD_ACCEPT,
+  UPLOADER_NAME_MAX_LENGTH,
+  UploadPageConfig
+} from '../shared/upload'
 import { ASSET_VERSION } from '../version'
 
 export interface UploadPageProps {
@@ -9,6 +14,31 @@ export interface UploadPageProps {
   basePath: string
   /** This share's gallery on IPP, when `PUBLIC_BASE_URL` is set. */
   galleryLink?: string
+}
+
+/**
+ * The visitor's name and a caption, sent with each file. Only rendered with
+ * the attribution layer on; see `attribution.ts`.
+ */
+function AttributionFields() {
+  return (
+    <section id='upload-details' class='upload-details' aria-label='About your photos'>
+      <label class='upload-field'>
+        <span class='upload-field-label'>Your name (optional)</span>
+        <input
+          id='upload-name'
+          type='text'
+          autocomplete='name'
+          maxLength={UPLOADER_NAME_MAX_LENGTH}
+        />
+      </label>
+      <label class='upload-field'>
+        <span class='upload-field-label'>Caption (optional)</span>
+        <textarea id='upload-caption' rows={2} maxLength={CAPTION_MAX_LENGTH} />
+      </label>
+      <p class='upload-field-note'>The owner sees these with each photo you send.</p>
+    </section>
+  )
 }
 
 function Icon({ path, class: className }: { path: string; class?: string }) {
@@ -55,6 +85,7 @@ export function UploadPage({ config, basePath, galleryLink }: UploadPageProps) {
           </div>
         </header>
         <main id='upload-main'>
+          {config.attribution && <AttributionFields />}
           <button id='upload-choose' type='button' class='upload-placeholder'>
             <Icon path={ICON_CLOUD_UPLOAD} class='upload-placeholder-icon' />
             <span class='upload-placeholder-title'>Add photos</span>

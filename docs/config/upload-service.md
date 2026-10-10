@@ -45,6 +45,25 @@ The service has no setting for its own public URL. It serves its pages both unde
 reverse proxy decides where it lives: a path on the IPP hostname (`photos.example.com/upload`) or a hostname of its
 own (`upload.example.com`). See [Route it through your reverse proxy](/visitor-uploads#route-it-through-your-reverse-proxy).
 
+### `IMMICH_API_KEY`
+
+**Optional**
+
+Turns on the attribution layer. The upload page then asks for the visitor's name (remembered in their browser) and a
+caption, and once Immich has stored a new file the service uses the key to:
+
+- write the caption and `Uploaded by <name>` into the photo's description, which needs the `asset.update`
+  permission, and
+- tag the photo `uploaded-by/<name>`, which needs `tag.create` and `tag.asset`.
+
+Both happen after the visitor has had their answer, and a failure is logged and never fails the upload. A file Immich
+already had (a duplicate) is left alone, so a description the owner wrote is never replaced. If the key lacks a
+permission, the first refusal logs one warning naming it and turns that half off until the service restarts.
+
+Without the variable, the service holds no key, ignores any name or caption sent to it, and makes no call beyond the
+upload itself. Read [Record who sent each photo](/tag-and-review-uploads#record-who-sent-each-photo) before setting
+it.
+
 ## Options
 
 ### `maxFileSize`
@@ -117,6 +136,8 @@ token in the URL never reaches the log.
   album ID or the shared link ID.
 - `asset.status` is `created`, or `duplicate` when the owner already had the same file. Immich adds a duplicate to the
   share too.
+- `uploader` and `caption` are added, after sanitising, only with [`IMMICH_API_KEY`](#immich-api-key) set and only
+  when the visitor filled them in. The message then ends `... by <name>.`
 - The body never contains the share key, the custom URL or a password.
 
 ntfy reads the two fields through its inline templates:

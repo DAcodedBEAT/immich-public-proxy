@@ -86,7 +86,17 @@ export interface UploadPageConfig {
   maxFileSize: number
   /** Share title, for the drop overlay and the completion message. */
   title: string
+  /**
+   * Whether the server writes a visitor's name and caption onto each new
+   * asset (`IMMICH_API_KEY` set). The page asks for them only when true.
+   */
+  attribution: boolean
 }
+
+/** Longest uploader name the server keeps; the page's field stops there too. */
+export const UPLOADER_NAME_MAX_LENGTH = 100
+/** Longest caption the server keeps; the page's field stops there too. */
+export const CAPTION_MAX_LENGTH = 500
 
 /** Success body of `POST <share>/upload`. */
 export interface UploadResponse {

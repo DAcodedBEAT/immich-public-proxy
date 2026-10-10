@@ -9,6 +9,11 @@ const MAX_FILENAME_LENGTH = 254
 */
 const formatCharsRe = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
+/** Remove zero-width and bidirectional format characters. */
+export function stripFormatChars(value: string): string {
+  return value.replace(formatCharsRe, '')
+}
+
 /**
  * Turn the visitor-supplied filename into the name Immich will store, with
  * `prefix` applied once. Returns undefined when nothing usable is left, or
@@ -17,7 +22,7 @@ const formatCharsRe = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFE
  */
 export function uploadFilename(raw: unknown, prefix: string): string | undefined {
   if (typeof raw !== 'string') return undefined
-  const base = raw.normalize('NFC').replace(formatCharsRe, '').split(/[\\/]/).pop() || ''
+  const base = stripFormatChars(raw.normalize('NFC')).split(/[\\/]/).pop() || ''
   // Split the extension off first: `sanitize` truncates at 254 characters,
   // which on a very long name would cut the extension away.
   const parts = base.match(/^(.*)(\.[A-Za-z0-9]{1,16})$/)

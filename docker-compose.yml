@@ -46,6 +46,11 @@ services:
   #   environment:
   #     IMMICH_URL: http://your-internal-immich-server:2283
   #     PUBLIC_BASE_URL: https://your-proxy-url.com
+  #     # Optional, and off by default: an API key lets the service record who
+  #     # sent each photo. It gives up the "holds no API key" property; read
+  #     # https://docs.ipp.nz/tag-and-review-uploads#record-who-sent-each-photo
+  #     # first. Grant only asset.update, tag.create and tag.asset.
+  #     # IMMICH_API_KEY: your-api-key
   #   healthcheck:
   #     test: curl -sf -m 4 http://localhost:3000/healthcheck -o /dev/null || exit 1
   #     start_period: 10s

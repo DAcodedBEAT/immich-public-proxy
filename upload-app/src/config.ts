@@ -47,3 +47,13 @@ export function notifyConfig():
   }
   return { url, headers, timeoutMs: getNumericConfigOption('ipp.upload.notifyTimeout', 10_000) }
 }
+
+/**
+ * The optional `IMMICH_API_KEY`, or undefined when unset. With it set the
+ * attribution layer is on: the page asks for a name and a caption, and the
+ * service writes them onto each new asset (see `annotate.ts`). Without it the
+ * service never authenticates as anything but the visitor's share.
+ */
+export function attributionKey(): string | undefined {
+  return process.env.IMMICH_API_KEY || undefined
+}

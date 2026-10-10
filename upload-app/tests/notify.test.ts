@@ -46,4 +46,28 @@ describe('buildNotification', () => {
     expect(payload).not.toContain('secret-slug')
     expect(payload).not.toContain('hunter2')
   })
+
+  it('carries no uploader or caption when there is no attribution', () => {
+    const payload = buildNotification(share(), file, asset)
+    expect(Object.keys(payload.data)).toEqual(['event', 'time', 'share', 'file', 'asset'])
+  })
+
+  it('adds the uploader and caption when given, and names the uploader in the message', () => {
+    const payload = buildNotification(share(), file, asset, {
+      uploader: 'Alice',
+      caption: 'Cake'
+    })
+    expect(payload.data.uploader).toBe('Alice')
+    expect(payload.data.caption).toBe('Cake')
+    expect(payload.message).toBe(
+      'ipp_upload_IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025 by Alice.'
+    )
+  })
+
+  it('adds only the field that is present', () => {
+    const payload = buildNotification(share(), file, asset, { caption: 'Cake' })
+    expect(payload.data).not.toHaveProperty('uploader')
+    expect(payload.data.caption).toBe('Cake')
+    expect(payload.message).toBe('ipp_upload_IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025.')
+  })
 })

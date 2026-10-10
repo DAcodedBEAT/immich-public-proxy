@@ -9,6 +9,8 @@ import {
   respondToInvalidRequest,
   SharedLink
 } from '@ipp/core'
+import { annotateUpload } from './annotate'
+import { readAttribution } from './attribution'
 import { byteBudget, filenamePrefix, maxFileSize, rateLimit } from './config'
 import { uploadFilename } from './filename'
 import { forwardUpload } from './forward'
@@ -110,6 +112,9 @@ export function createUploadReceiver() {
       return
     }
 
+    // Undefined unless IMMICH_API_KEY is set and the visitor gave a name or caption
+    const attribution = readAttribution(req.query)
+
     const mimeType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
     if (!isUploadableType(mimeType) || !isUploadableName(filename)) {
       refuse(res, 415, 'Only photos and videos can be sent')
@@ -180,8 +185,12 @@ export function createUploadReceiver() {
       buildNotification(
         link,
         { name: filename, size: result.bytes, type: mimeType },
-        { id: result.id, status: result.status }
+        { id: result.id, status: result.status },
+        attribution
       )
     )
+    // Also after the reply, and only for a new asset: a duplicate's description is the owner's
+    if (attribution && result.status === 'created')
+      void annotateUpload(permit, result.id, attribution)
   }
 }

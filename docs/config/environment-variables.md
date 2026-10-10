@@ -91,7 +91,16 @@ The secret that signs the cookie holding a visitor's unlocked share passwords. B
 new one, which signs every visitor out. Set the same long random value on every copy of IPP if you run several
 behind a load balancer, so a visitor stays unlocked whichever copy answers.
 
+## `IMMICH_API_KEY`
+
+**Optional** · **Upload service only**
+
+An Immich API key for the upload service's optional attribution layer: the upload page asks visitors for their name
+and a caption, and the service writes them onto each new photo. IPP itself never reads this variable, and the upload
+service needs no key without it. Read the trade-off before setting it: see
+[Record who sent each photo](/tag-and-review-uploads#record-who-sent-each-photo).
+
 `APP_VERSION` and `NODE_ENV` are set by the Docker image and are not meant to be changed.
 
 The optional upload service reads the same variables, with the same meanings, so the `environment` block can be
-copied across. See [Upload service](/config/upload-service#environment-variables).
+copied across. `IMMICH_API_KEY` is the one variable only the upload service reads. See [Upload service](/config/upload-service#environment-variables).
