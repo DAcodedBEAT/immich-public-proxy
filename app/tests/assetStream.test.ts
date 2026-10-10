@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { Asset, AssetType, KeyType, loadConfig, SharedLink } from '@ipp/core'
 import { Writable } from 'stream'
 import type { Request, Response } from 'express-serve-static-core'
-import { assetBuffer } from '../src/stream/asset'
+import { assetBuffer, upstreamRange } from '../src/stream/asset'
 import { ImageSize, IncomingShareRequest } from '../src/types'
 
 afterEach(() => {
@@ -33,8 +33,8 @@ function shareOf (item: Asset): SharedLink {
   return { key: 'testkey', keyType: KeyType.key, type: 'INDIVIDUAL', assets: [item] }
 }
 
-function makeRequest (method = 'GET'): IncomingShareRequest {
-  return { req: { method } as Request, key: 'testkey', range: '' }
+function makeRequest (method = 'GET', range = ''): IncomingShareRequest {
+  return { req: { method } as Request, key: 'testkey', range }
 }
 
 /*
@@ -260,5 +260,82 @@ describe('assetBuffer streaming', () => {
     await assetBuffer(makeRequest(), asResponse(res), asset, ImageSize.preview, shareOf(asset))
     expect(res.headers['content-disposition']).toBeUndefined()
     expect(res.headers['x-content-type-options']).toBe('nosniff')
+  })
+})
+
+describe('upstreamRange', () => {
+  it('passes a closed range through', () => {
+    expect(upstreamRange('bytes=100-200')).toBe('bytes=100-200')
+  })
+
+  it('caps an open-ended range to one 2.5 MB chunk', () => {
+    expect(upstreamRange('bytes=0-')).toBe('bytes=0-2499999')
+    expect(upstreamRange('bytes=100-')).toBe('bytes=100-2500099')
+  })
+
+  it('keeps a suffix range as the last N bytes', () => {
+    expect(upstreamRange('bytes=-500')).toBe('bytes=-500')
+  })
+
+  it.each([
+    'nonsense',
+    'bytes=',
+    'bytes=-',
+    'bytes=-0',
+    'bytes=500-100',
+    'bytes=0-1,5-9',
+    'items=0-1',
+    'bytes=a-b',
+    'bytes=99999999999999999999-'
+  ])('ignores %s, so the whole file is served', range => {
+    expect(upstreamRange(range)).toBeUndefined()
+  })
+})
+
+describe('assetBuffer video playback ranges', () => {
+  const video: Asset = { ...asset, id: 'v1', type: AssetType.video, originalFileName: 'v1.mp4', originalMimeType: 'video/mp4' }
+
+  async function playback (range: string, status: number) {
+    const sent: (string | null)[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: unknown, init?: RequestInit) => {
+      sent.push(new Headers(init?.headers).get('range'))
+      return new globalThis.Response(new Uint8Array(16), {
+        status,
+        headers: { 'content-type': 'video/mp4', 'content-range': 'bytes 0-15/9999999', 'cache-control': 'private' }
+      })
+    }))
+    const res = new FakeRes()
+    const codes: number[] = []
+    res.status = (code: number) => { codes.push(code); return res }
+    await assetBuffer(makeRequest('GET', range), asResponse(res), video, ImageSize.preview, shareOf(video), true)
+    return { sent: sent[0], codes, headers: res.headers }
+  }
+
+  it('answers 206 with Content-Range when Immich honours the range', async () => {
+    const { sent, codes, headers } = await playback('bytes=0-', 206)
+    expect(sent).toBe('bytes=0-2499999')
+    expect(codes).toEqual([206])
+    expect(headers['content-range']).toBe('bytes 0-15/9999999')
+    expect(headers['accept-ranges']).toBe('bytes')
+  })
+
+  it('answers 200 without Content-Range when Immich ignores the range', async () => {
+    const { sent, codes, headers } = await playback('bytes=0-', 200)
+    expect(sent).toBe('bytes=0-2499999')
+    expect(codes).toEqual([])
+    expect(headers['content-range']).toBeUndefined()
+  })
+
+  it('asks Immich for the last N bytes of a suffix range', async () => {
+    const { sent, codes } = await playback('bytes=-500', 206)
+    expect(sent).toBe('bytes=-500')
+    expect(codes).toEqual([206])
+  })
+
+  it.each(['nonsense', 'bytes=0-1,5-9'])('serves the whole file with 200 for the Range %s', async range => {
+    const { sent, codes, headers } = await playback(range, 200)
+    expect(sent).toBeNull()
+    expect(codes).toEqual([])
+    expect(headers['content-range']).toBeUndefined()
   })
 })
