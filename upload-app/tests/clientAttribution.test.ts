@@ -1,11 +1,23 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { chooseFiles, FakeXHR, loadClient, makeFile, renderUploadPage } from './clientDom'
+import {
+  chooseAndSubmit,
+  chooseFiles,
+  FakeXHR,
+  loadClient,
+  makeFile,
+  renderUploadPage,
+  stubObjectUrls,
+  submitReview
+} from './clientDom'
 
 /*
   The page client's half of the attribution layer: the name and caption
-  fields, sent as query parameters, and the remembered name.
+  fields in the review sheet, sent as query parameters, and the remembered
+  name.
 */
+
+let urls: ReturnType<typeof stubObjectUrls>
 
 const NAME_KEY = 'ipp-upload-name'
 
@@ -13,9 +25,11 @@ beforeEach(() => {
   FakeXHR.reset()
   vi.stubGlobal('XMLHttpRequest', FakeXHR)
   localStorage.clear()
+  urls = stubObjectUrls()
 })
 
 afterEach(() => {
+  urls.restore()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -30,7 +44,7 @@ describe('without attribution', () => {
     expect(nameField()).toBeNull()
     expect(captionField()).toBeNull()
 
-    chooseFiles([makeFile('a.jpg')])
+    chooseAndSubmit([makeFile('a.jpg')])
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
     expect(Object.keys(FakeXHR.instances[0].query).sort()).toEqual([
       'fileCreatedAt',
@@ -45,7 +59,7 @@ describe('without attribution', () => {
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
     renderUploadPage({ attribution: false })
     await loadClient()
-    chooseFiles([makeFile('a.jpg')])
+    chooseAndSubmit([makeFile('a.jpg')])
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
     expect(getItem).not.toHaveBeenCalled()
     expect(setItem).not.toHaveBeenCalled()
@@ -54,9 +68,11 @@ describe('without attribution', () => {
 })
 
 describe('with attribution', () => {
-  it('has a labelled name field and caption box, within the server limits', async () => {
+  it('has a labelled name field and caption box in the sheet, within the server limits', async () => {
     renderUploadPage({ attribution: true })
     await loadClient()
+    expect(nameField().closest('#upload-review')).not.toBeNull()
+    expect(captionField().closest('#upload-review')).not.toBeNull()
     expect(nameField().closest('label')?.textContent).toContain('Your name')
     expect(captionField().closest('label')?.textContent).toContain('Caption')
     expect(nameField().maxLength).toBe(100)
@@ -66,9 +82,10 @@ describe('with attribution', () => {
   it('sends the name and caption with every file, and remembers the name', async () => {
     renderUploadPage({ attribution: true })
     await loadClient()
+    chooseFiles([makeFile('a.jpg'), makeFile('b.jpg')])
     nameField().value = '  Alice '
     captionField().value = 'Cake cutting'
-    chooseFiles([makeFile('a.jpg'), makeFile('b.jpg')])
+    submitReview()
 
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(2))
     for (const xhr of FakeXHR.instances) {
@@ -77,14 +94,19 @@ describe('with attribution', () => {
       expect(xhr.query.filename).toMatch(/^[ab]\.jpg$/)
     }
     expect(localStorage.getItem(NAME_KEY)).toBe('Alice')
+    // The caption was for that batch; the name stays for the next
+    chooseFiles([makeFile('c.jpg')])
+    expect(captionField().value).toBe('')
+    expect(nameField().value).toBe('  Alice ')
   })
 
   it('leaves out an empty field, and forgets a cleared name', async () => {
     localStorage.setItem(NAME_KEY, 'Alice')
     renderUploadPage({ attribution: true })
     await loadClient()
-    nameField().value = ''
     chooseFiles([makeFile('a.jpg')])
+    nameField().value = ''
+    submitReview()
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
     expect(FakeXHR.instances[0].query).not.toHaveProperty('uploaderName')
     expect(FakeXHR.instances[0].query).not.toHaveProperty('caption')
@@ -95,6 +117,7 @@ describe('with attribution', () => {
     localStorage.setItem(NAME_KEY, 'Alice')
     renderUploadPage({ attribution: true })
     await loadClient()
+    chooseFiles([makeFile('a.jpg')])
     expect(nameField().value).toBe('Alice')
   })
 
@@ -107,9 +130,10 @@ describe('with attribution', () => {
     })
     renderUploadPage({ attribution: true })
     await loadClient()
+    chooseFiles([makeFile('a.jpg')])
     expect(nameField().value).toBe('')
     nameField().value = 'Alice'
-    chooseFiles([makeFile('a.jpg')])
+    submitReview()
     await vi.waitFor(() => expect(FakeXHR.instances).toHaveLength(1))
     expect(FakeXHR.instances[0].query.uploaderName).toBe('Alice')
   })
@@ -118,9 +142,10 @@ describe('with attribution', () => {
     FakeXHR.script = [{ status: 502, body: { error: 'Could not reach Immich' } }]
     renderUploadPage({ attribution: true })
     await loadClient()
+    chooseFiles([makeFile('a.jpg')])
     nameField().value = 'Alice'
     captionField().value = 'First'
-    chooseFiles([makeFile('a.jpg')])
+    submitReview()
     await vi.waitFor(() =>
       expect(document.querySelector('.upload-row')?.getAttribute('data-state')).toBe('error')
     )

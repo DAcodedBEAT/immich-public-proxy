@@ -279,6 +279,203 @@ html.dark .upload-bar {
   to { transform: rotate(360deg); }
 }
 
+/* ===== Review sheet: the chosen files, before anything is sent ===== */
+
+.upload-review {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.upload-review[hidden] {
+  display: none;
+}
+
+body.upload-review-open {
+  overflow: hidden;
+}
+
+.upload-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+  border-radius: 24px;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-size: 14px;
+}
+
+.upload-review-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-review-header h2 {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+#upload-review-summary {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+#upload-review-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 64px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.upload-review-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 15%, transparent);
+  border-radius: 12px;
+  background: var(--color-subtle);
+  font-size: 12px;
+}
+
+.upload-review-thumb {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary);
+  overflow: hidden;
+}
+
+.upload-review-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-review-thumb-placeholder,
+.upload-review-thumb-placeholder svg {
+  display: flex;
+  width: 28px;
+  height: 28px;
+}
+
+.upload-review-row[data-refused] .upload-review-thumb {
+  color: var(--color-danger);
+}
+
+.upload-review-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.upload-review-name {
+  word-break: break-all;
+}
+
+.upload-review-detail {
+  opacity: 0.7;
+}
+
+.upload-review .upload-details {
+  padding-top: 4px;
+}
+
+.upload-review-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-review-spacer {
+  flex: 1 1 auto;
+}
+
+/* Immich's pill buttons */
+.upload-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-fg) 15%, transparent);
+  border-radius: 9999px;
+  background: transparent;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.upload-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.upload-button:hover,
+.upload-button:focus-visible {
+  background: color-mix(in srgb, var(--color-fg) 10%, transparent);
+}
+
+.upload-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.upload-button-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.upload-button-primary:hover,
+.upload-button-primary:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 85%, var(--color-fg));
+}
+
+.upload-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* A sheet from the bottom of a phone screen */
+@media (max-width: 600px) {
+  .upload-review {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .upload-review-panel {
+    max-height: 90dvh;
+    border-radius: 24px 24px 0 0;
+  }
+}
+
 /* ===== Drop overlay ===== */
 
 #upload-drop {

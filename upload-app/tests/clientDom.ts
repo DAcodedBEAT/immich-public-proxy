@@ -49,6 +49,58 @@ export function chooseFiles(files: File[]) {
   input.dispatchEvent(new Event('change'))
 }
 
+/** Confirm the review sheet, which hands its files to the upload queue. */
+export function submitReview() {
+  click(document.getElementById('upload-review-submit'))
+}
+
+/** Pick files and confirm them in the review sheet at once. */
+export function chooseAndSubmit(files: File[]) {
+  chooseFiles(files)
+  submitReview()
+}
+
+/** A drag event carrying files, as a browser dispatches it on the window. */
+export function dragEvent(type: string, files: File[] = []): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files } })
+  return event
+}
+
+export function click(el: Element | null) {
+  if (!el) throw new Error('nothing to click')
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+/**
+ * jsdom has no object URLs. Stand-ins that hand out numbered `blob:` URLs and
+ * record which are still live, so a test can check every one is revoked.
+ */
+export function stubObjectUrls() {
+  const live = new Set<string>()
+  let next = 0
+  const created = vi.fn((_blob: Blob) => {
+    const url = 'blob:test/' + ++next
+    live.add(url)
+    return url
+  })
+  const revoked = vi.fn((url: string) => {
+    live.delete(url)
+  })
+  const saved = { create: URL.createObjectURL, revoke: URL.revokeObjectURL }
+  URL.createObjectURL = created
+  URL.revokeObjectURL = revoked
+  return {
+    created,
+    revoked,
+    live,
+    restore() {
+      URL.createObjectURL = saved.create
+      URL.revokeObjectURL = saved.revoke
+    }
+  }
+}
+
 type Outcome = { status: number; body?: unknown; headers?: Record<string, string> }
 
 /**
