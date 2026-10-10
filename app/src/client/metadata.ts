@@ -10,9 +10,7 @@ never reach this module (no `metaBase`).
 import { state } from './state.js'
 import type { GalleryItem, AssetMetadata } from '../shared/types.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LightboxInstance = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PswpInstance = any
 
 // One in-flight (then resolved) request per asset id, so paging back and

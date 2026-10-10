@@ -162,14 +162,14 @@ function layoutJustifiedGroup(
   let y = startY
 
   const applyRow = (
-    rowItems: Array<{ idx: number; aspect: number }>,
+    row: Array<{ idx: number; aspect: number }>,
     height: number,
     isLastRow: boolean
   ) => {
     const intHeight = Math.floor(height)
     let x = 0
-    rowItems.forEach(({ idx, aspect }, i) => {
-      const isFinalInRow = i === rowItems.length - 1
+    row.forEach(({ idx, aspect }, i) => {
+      const isFinalInRow = i === row.length - 1
       const w = !isLastRow && isFinalInRow ? containerW - x : Math.floor(aspect * height)
       tileLayout[idx] = { index: idx, left: x, top: y, width: w, height: intHeight }
       x += w + GAP
