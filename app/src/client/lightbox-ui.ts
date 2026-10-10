@@ -23,7 +23,6 @@ interface PswpUiElementConfig {
   ariaLabel?: string
   appendTo?: string
   html?: string
-  // eslint-disable-next-line no-use-before-define
   onInit?: (el: HTMLElement, pswp: PswpInstance) => void
 }
 
@@ -39,7 +38,6 @@ interface PswpInstance {
   close: () => void
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LightboxInstance = any
 
 /**

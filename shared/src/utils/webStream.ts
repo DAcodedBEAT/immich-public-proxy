@@ -9,7 +9,6 @@ import { Readable } from 'stream'
  * nominal types, so a cast is needed.
  */
 export function readableFromWeb(body: ReadableStream<Uint8Array>): Readable {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return Readable.fromWeb(body as any)
 }
 
@@ -23,7 +22,6 @@ export function readableFromWeb(body: ReadableStream<Uint8Array>): Readable {
 export function streamingRequestInit(init: RequestInit, body: Readable): RequestInit {
   return {
     ...init,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     body: Readable.toWeb(body) as any,
     duplex: 'half'
   } as RequestInit
