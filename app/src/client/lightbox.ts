@@ -4,7 +4,7 @@
 
 // Runtime URL resolved by Express static, not a TS-resolvable module path.
 // @ts-expect-error - browser-only ESM URL
-import PhotoSwipeLightbox from '/share/static/photoswipe/photoswipe-lightbox.esm.js' // eslint-disable-line import/no-absolute-path
+import PhotoSwipeLightbox from '/share/static/photoswipe/photoswipe-lightbox.esm.js'
 
 import type { PhotoSwipeOptions } from 'photoswipe'
 import { state, SIDEBAR_WIDTH, MOBILE_BREAKPOINT } from './state.js'
@@ -111,7 +111,6 @@ function buildDataSource() {
  *     larger bitmap to unlock deeper zoom.
  */
 function registerZoomUpgrade(lightbox: { on: (ev: string, cb: (e: any) => void) => void }) {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
   lightbox.on('zoomLevelsUpdate', e => {
     const zoomLevels = e.zoomLevels
     const idx = e.slideData?._ippIndex
@@ -164,7 +163,6 @@ function registerZoomUpgrade(lightbox: { on: (ev: string, cb: (e: any) => void) 
  * re-dispatches `zoomLevelsUpdate`, where the cap is applied.
  */
 function recordAndRefresh(content: any) {
-  // eslint-disable-line @typescript-eslint/no-explicit-any
   const img = content?.element
   if (
     img instanceof HTMLImageElement &&
@@ -242,7 +240,7 @@ export function initLightbox() {
     }),
     dataSource: buildDataSource(),
     // @ts-expect-error - runtime URL resolved by Express static
-    pswpModule: () => import('/share/static/photoswipe/photoswipe.esm.js') // eslint-disable-line import/no-absolute-path
+    pswpModule: () => import('/share/static/photoswipe/photoswipe.esm.js')
   }
 
   state.lightbox = new PhotoSwipeLightbox(lightboxOptions)

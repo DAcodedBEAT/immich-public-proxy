@@ -9,7 +9,7 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm test --workspaces && vitest run --root docs",
-    "lint": "oxlint && oxfmt --check",
+    "lint": "oxlint --deny-warnings && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
     "dev": "npm run dev --workspace=app",
     "bump": "npm version --no-git-tag-version --workspaces"
