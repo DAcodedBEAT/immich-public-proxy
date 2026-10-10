@@ -16,27 +16,24 @@ import {
   getConfigOption,
   getKeyTypeFromShare,
   healthcheck,
-  isId,
-  isKey,
   KeyType,
   loadConfig,
   renderPage,
   respondToInvalidRequest,
   sessionMiddleware,
   setInvalidRequestHandler,
-  SharedLink,
   slugLinksDisabled,
   unlockHandler
 } from '@ipp/core'
-import { fetchAssetDetail, getShareByKey, handleShareRequest } from './immich'
+import { fetchAssetDetail, handleShareRequest } from './immich'
+import { resolveShare, resolveSharedAsset } from './resolveShare'
 import { buildAssetMetadata } from './gallery/metadata'
 import { removedMetadataSwitches } from './gallery/exif'
 import { assetBuffer } from './stream/asset'
 import { downloadAssets } from './stream/download'
 import dayjs from 'dayjs'
-import { Request } from 'express-serve-static-core'
 import { ImageSize } from './types'
-import { canDownload, findMotionPhotoStill, uploadHealthcheck } from './share'
+import { canDownload, uploadHealthcheck } from './share'
 import { respondToInvalidRequest as ippInvalidRequestHandler } from './invalidRequestHandler'
 import { ASSET_VERSION } from './version'
 import { h } from 'preact'
@@ -85,68 +82,6 @@ serveStatic('/share/static')
 // The same assets on /, to allow for /robots.txt and /favicon.ico
 serveStatic('/')
 app.disable('x-powered-by')
-
-/*
-  Shared route guards. Several routes need the same "resolve a share, reject
-  invalid / password-protected ones, optionally find the requested asset"
-  preamble. These return a discriminated result so each route keeps control of
-  its own response (e.g. the photo route redirects on password where the meta
-  and download routes return 401), while the validation order and the
-  `valid`/`link`/`passwordRequired` checks live in one place.
-*/
-type ShareResolution =
-  | { ok: true, link: SharedLink }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
-
-type SharedAssetResolution =
-  | { ok: true, link: SharedLink, asset: Asset }
-  | { ok: false, status: number, reason: string, passwordRequired?: boolean }
-
-async function resolveShare (req: Request, keyType: KeyType): Promise<ShareResolution> {
-  if (slugLinksDisabled(keyType)) {
-    return { ok: false, status: 404, reason: 'Slug links are disabled in config.json' }
-  }
-  if (!isKey(req.params.key)) {
-    return { ok: false, status: 404, reason: 'Invalid key for ' + req.path }
-  }
-  // The password is provided from the encrypted session cookie (if set) by
-  // decodeCookie. Validating the share here prevents direct URL access from
-  // bypassing password protection.
-  const share = await getShareByKey(req.params.key, req.password, keyType)
-  if (!share?.valid || !share.link) {
-    return { ok: false, status: 404, reason: 'Invalid share link' }
-  }
-  if (share.passwordRequired) {
-    return { ok: false, status: 401, reason: 'Password required', passwordRequired: true }
-  }
-  return { ok: true, link: share.link }
-}
-
-async function resolveSharedAsset (req: Request, keyType: KeyType, allowMotion = false): Promise<SharedAssetResolution> {
-  if (!isId(req.params.id)) {
-    return { ok: false, status: 404, reason: 'Invalid ID for ' + req.path }
-  }
-  const resolved = await resolveShare(req, keyType)
-  if (!resolved.ok) return resolved
-  // Confirm the asset belongs to this share (defence in depth - Immich also
-  // enforces this via the share key).
-  const asset = resolved.link.assets.find(a => a.id === req.params.id)
-  if (asset) return { ok: true, link: resolved.link, asset }
-  // A motion photo's clip is a hidden asset outside the share's asset list.
-  // Serve it on the video route only, and only if a shared still points at it.
-  if (allowMotion) {
-    const parent = findMotionPhotoStill(resolved.link, req.params.id)
-    if (parent) {
-      return {
-        ok: true,
-        link: resolved.link,
-        // Streams inline, so the still's filename / mime must not carry over.
-        asset: { ...parent, id: req.params.id, type: AssetType.video, originalFileName: undefined, originalMimeType: undefined }
-      }
-    }
-  }
-  return { ok: false, status: 404, reason: 'Asset not found in share' }
-}
 
 /*
   [ROUTE] Healthcheck, on /share/healthcheck and the legacy /healthcheck
@@ -259,6 +194,8 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, asyncHandler(
     // Password-protected: redirect to the share page so the visitor gets the
     // unlock prompt, rather than returning an error.
     if (resolved.passwordRequired) {
+      // Not cached, or the visitor would keep being sent here after unlocking
+      addNoStoreHeaders(res)
       res.redirect('/share/' + req.params.key)
       return
     }
@@ -293,6 +230,7 @@ app.get('/:shareType(share|s)/meta/:key/:id', decodeCookie, asyncHandler(async (
 
   const resolved = await resolveSharedAsset(req, getKeyTypeFromShare(req.params.shareType))
   if (!resolved.ok) {
+    if (resolved.passwordRequired) addNoStoreHeaders(res)
     respondToInvalidRequest(res, resolved.status, resolved.reason)
     return
   }
