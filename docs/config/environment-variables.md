@@ -21,7 +21,8 @@ From inside a container, `localhost` does not reach Immich. If IPP logs "Unable 
 
 The public base URL of IPP without a trailing slash, for example `https://photos.example.com`. The gallery uses
 relative URLs everywhere except the `og:image` tag that messaging apps read for link previews, which must be fully
-qualified. When unset, IPP builds it from the incoming request's protocol and `Host` header.
+qualified. When unset, IPP builds it from the incoming request's protocol and `Host` header, and sends the page with
+`Vary: Host`.
 
 Set it if link previews show `http://` or a private address. Leave it unset if you serve IPP from several domains,
 and make sure your reverse proxy forwards the original `Host` header.
