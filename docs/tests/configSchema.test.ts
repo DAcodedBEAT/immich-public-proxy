@@ -161,7 +161,7 @@ describe('parsePage', () => {
       '/config/metadata'
     )
     expect(problems).toEqual([])
-    expect(keys.map(key => [key.path, key.default, key.anchor, key.group])).toEqual([
+    expect(keys.map(k => [k.path, k.default, k.anchor, k.group])).toEqual([
       ['ipp.showMetadata.exif.make', false, 'exif-group', 'EXIF group'],
       ['ipp.showMetadata.exif.iso', true, 'exif-group', 'EXIF group']
     ])

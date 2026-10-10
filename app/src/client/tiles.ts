@@ -3,7 +3,7 @@
 
 // Runtime URL resolved by Express static, not a TS-resolvable module path.
 // @ts-expect-error - browser-only ESM URL
-import { thumbHashToDataURL } from '/share/static/thumbhash/thumbhash.js' // eslint-disable-line import/no-absolute-path
+import { thumbHashToDataURL } from '/share/static/thumbhash/thumbhash.js'
 
 import { state, LONG_PRESS_MS } from './state.js'
 import { CHECK_SVG, ICON_MOTION_BADGE } from './icons.js'

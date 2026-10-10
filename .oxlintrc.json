@@ -2,7 +2,8 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc", "react", "vitest", "promise", "node"],
   "categories": {
-    "correctness": "error"
+    "correctness": "error",
+    "suspicious": "warn"
   },
   "ignorePatterns": [
     "**/dist/**",
@@ -11,12 +12,35 @@
     "docs/.vitepress/dist/**"
   ],
   "rules": {
+    "eqeqeq": ["error", "always", { "null": "ignore" }],
+    "no-var": "error",
+    "prefer-const": "error",
+    "no-debugger": "error",
     "no-unused-vars": ["error", { "args": "none", "caughtErrors": "none" }],
     // Standard `.catch(next)` pattern for handing an async route's rejection
     // to Express's own error middleware - the correct, idiomatic way to
     // bridge a promise into Express, not the callback/promise mixing this
     // rule is meant to catch.
     "promise/no-callback-in-promise": "off",
+    // Off from the `suspicious` category, each a false positive or pure
+    // style here:
+    // - JSX uses the automatic runtime (jsxImportSource), so React needn't be in scope
+    "react/react-in-jsx-scope": "off",
+    // - Express 5 forwards an async handler's rejection to the error middleware itself
+    "oxc/no-async-endpoint-handlers": "off",
+    // - side-effect-only .then() callbacks (cache eviction, DOM updates) have nothing to return
+    "promise/always-return": "off",
+    // - tests poll flags that a callback flips (`while (!closed) await tick()`)
+    "no-unmodified-loop-condition": "off",
+    // - Node's stream `_write` and PhotoSwipe's `_ippIndex` are underscore names by contract
+    "no-underscore-dangle": "off",
+    // - style only: small helpers kept next to their single use, mostly in tests
+    "unicorn/consistent-function-scoping": "off",
+    // - style only: sorting freshly built arrays, where in-place is fine
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    // - style only: one handler per fresh <img>, so `onload =` is equivalent
+    "unicorn/prefer-add-event-listener": "off",
     // Low-value here: message-less `.rejects.toThrow()` is used throughout
     // to assert "this failed", where the failure mode itself is already
     // clear from the test's name/context.
