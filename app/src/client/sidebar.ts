@@ -16,9 +16,7 @@ import {
 } from './icons.js'
 import type { GalleryItem, GalleryExif } from '../shared/types.js'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LightboxInstance = any
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PswpInstance = any
 
 interface PswpUiElementConfig {

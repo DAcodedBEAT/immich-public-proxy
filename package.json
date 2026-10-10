@@ -9,7 +9,7 @@
   "scripts": {
     "build": "npm run build --workspaces",
     "test": "npm test --workspaces && vitest run --root docs",
-    "lint": "oxlint && oxfmt --check",
+    "lint": "oxlint --deny-warnings && oxfmt --check",
     "lint:fix": "oxlint --fix && oxfmt --write",
     "predev": "tsc -b shared",
     "dev": "concurrently -n core,ipp,upload -c magenta,blue,green \"tsc -b -w --preserveWatchOutput shared\" \"npm run dev:app --workspace=app\" \"npm run dev:app --workspace=upload-app\"",

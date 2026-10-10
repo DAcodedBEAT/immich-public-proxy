@@ -56,7 +56,6 @@ export interface GroupSpec {
 }
 
 // PhotoSwipeLightbox is an external module with no TS types in this project.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PhotoSwipeLightboxInstance = any
 
 export const state = {
