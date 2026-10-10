@@ -24,7 +24,7 @@ import { displayDimensions, metadataGroupActive, pickExif } from './exif'
 export async function gallery (res: Response, share: SharedLink, openItem?: number) {
   // publicBaseUrl is used for the og:image, which requires a fully qualified URL.
   // You can specify this in your docker-compose file via the PUBLIC_BASE_URL env var.
-  const publicBaseUrl = process.env.PUBLIC_BASE_URL || (res.req.protocol + '://' + res.req.headers.host)
+  const publicBaseUrl = process.env.PUBLIC_BASE_URL || requestBaseUrl(res)
 
   // `share.assets` is already in display order, date grouping included
   // (see gallery/order.ts), so no sort happens here.
@@ -162,6 +162,16 @@ export async function gallery (res: Response, share: SharedLink, openItem?: numb
     res.header('Cache-Control', 'public, max-age=' + cacheTime)
   }
   res.send(renderPage(h(Gallery, props)))
+}
+
+/**
+ * The base URL from the request's protocol and Host header. The page is then
+ * cached per Host, so a forged Host can't put its own og:image URL into a
+ * shared cache for other visitors.
+ */
+function requestBaseUrl (res: Response): string {
+  res.vary('Host')
+  return res.req.protocol + '://' + res.req.headers.host
 }
 
 /**
