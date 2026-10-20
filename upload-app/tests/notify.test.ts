@@ -50,6 +50,16 @@ describe('buildNotification', () => {
     expect(anonymous.data.uploader).toBe('')
   })
 
+  it('carries a caption only when one was given, and leaves the message as it was', () => {
+    const captioned = buildNotification(share(), file, asset, 'jane-smith', 'Cake cutting')
+    expect(captioned.data.caption).toBe('Cake cutting')
+    expect(captioned.message).toBe(
+      'ipp_upload_IMG_0042.jpg (3.0 MB) was uploaded to Holiday 2025 by jane-smith.'
+    )
+    expect(buildNotification(share(), file, asset, 'jane-smith').data).not.toHaveProperty('caption')
+    expect(buildNotification(share(), file, asset, '', '').data).not.toHaveProperty('caption')
+  })
+
   it('never carries the share key, slug or password', () => {
     const payload = JSON.stringify(
       buildNotification(

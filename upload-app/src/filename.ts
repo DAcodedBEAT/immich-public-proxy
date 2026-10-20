@@ -9,6 +9,11 @@ const MAX_FILENAME_LENGTH = 254
 */
 const formatCharsRe = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
+/** Remove zero-width and bidirectional format characters. */
+export function stripFormatChars(value: string): string {
+  return value.replace(formatCharsRe, '')
+}
+
 const MAX_UPLOADER_LENGTH = 32
 
 /*

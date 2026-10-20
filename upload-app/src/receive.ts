@@ -17,6 +17,7 @@ import {
   maxFileSize,
   rateLimit
 } from './config'
+import { readCaption, writeCaption } from './caption'
 import { uploaderSlug, uploadFilename } from './filename'
 import { forwardUpload } from './forward'
 import { authoriseUpload } from './gate'
@@ -121,6 +122,9 @@ export function createUploadReceiver() {
       return
     }
 
+    // Undefined unless captions are on (config and API key) and the visitor wrote one
+    const caption = readCaption(req.query)
+
     const mimeType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
     if (!isUploadableType(mimeType) || !isUploadableName(filename)) {
       refuse(res, 415, 'Only photos and videos can be sent')
@@ -192,8 +196,11 @@ export function createUploadReceiver() {
         link,
         { name: filename, size: result.bytes, type: mimeType },
         { id: result.id, status: result.status },
-        uploader
+        uploader,
+        caption
       )
     )
+    // Also after the reply, and only for a new asset: a duplicate's description is the owner's
+    if (caption && result.status === 'created') void writeCaption(permit, result.id, caption)
   }
 }

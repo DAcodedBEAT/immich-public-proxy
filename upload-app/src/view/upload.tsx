@@ -1,6 +1,6 @@
 import { jsonForInlineScript, ThemeScript } from '@ipp/core'
 import { ICON_ARROW_LEFT, ICON_CLOUD_UPLOAD } from '../shared/icons'
-import { UPLOAD_ACCEPT, UploadPageConfig } from '../shared/upload'
+import { CAPTION_MAX_LENGTH, UPLOAD_ACCEPT, UploadPageConfig } from '../shared/upload'
 import { ASSET_VERSION } from '../version'
 
 export interface UploadPageProps {
@@ -11,6 +11,24 @@ export interface UploadPageProps {
   galleryLink?: string
   /** Plain text shown under the placeholder. Empty hides it. */
   notice: string
+}
+
+/**
+ * A caption for the files the visitor sends next, written as each new
+ * photo's description. Only rendered with the caption layer on; see `caption.ts`.
+ */
+function CaptionField() {
+  return (
+    <label class='upload-caption'>
+      <span class='upload-caption-label'>Caption</span>
+      <textarea
+        id='upload-caption'
+        rows={2}
+        maxLength={CAPTION_MAX_LENGTH}
+        placeholder='Optional. Shown with each photo you send next.'
+      />
+    </label>
+  )
 }
 
 function Icon({ path, class: className }: { path: string; class?: string }) {
@@ -70,6 +88,7 @@ export function UploadPage({ config, basePath, galleryLink, notice }: UploadPage
               />
             </label>
           )}
+          {config.captions && <CaptionField />}
           <button id='upload-choose' type='button' class='upload-placeholder'>
             <Icon path={ICON_CLOUD_UPLOAD} class='upload-placeholder-icon' />
             <span class='upload-placeholder-title'>Add photos</span>

@@ -123,6 +123,21 @@ dot, space, a character that is illegal in a filename (`/ ? < > \ : * | "`) or a
 Changing it later leaves the files already stored with the old one. How the filename is read back is explained in
 [The separator](/tag-and-review-uploads#the-separator).
 
+## `captions`
+
+**Type:** `bool` · **Default:** `false`
+
+Whether the upload page has an optional caption box, written as the description of each new photo in Immich. Writing
+a description takes an Immich API key, so captions need two steps: this option set to `true`, and
+[`IMMICH_API_KEY`](/config/environment-variables#immich-api-key) in the upload container's environment. With either
+one missing, the page has no caption box, a caption sent anyway is ignored, and the service holds no key and makes no
+call beyond the upload itself.
+
+The visitor writes one caption for the files they send next. After Immich has stored a new file and the visitor has
+had their answer, the service sets the caption as that photo's description. A file Immich already had (a duplicate)
+is left alone. A failure is logged and never fails the upload. Read
+[Add a caption to each photo](/tag-and-review-uploads#add-a-caption-to-each-photo) before turning it on.
+
 ## `notifyUrl`
 
 **Type:** `string` · **Default:** `""`
@@ -154,6 +169,8 @@ token in the URL never reaches the log.
   share too.
 - `uploader` is the visitor's name as it appears in the filename, or `""` when the visitor gave none or
   [`askName`](#askname) is off.
+- `caption` is added only with [`captions`](#captions) on and a caption given, after the same cleaning as the
+  description. It is there for a duplicate too, though the duplicate's description is not changed.
 - The body never contains the share key, the custom URL or a password.
 
 ntfy reads the two fields through its inline templates:

@@ -26,7 +26,7 @@ import {
   trustProxyHops,
   unlockHandler
 } from '@ipp/core'
-import { askName, galleryUrl, maxFileSize, uploadNotice } from './config'
+import { askName, captionKey, galleryUrl, maxFileSize, uploadNotice } from './config'
 
 const isShareType = (segment: string) =>
   (SHARE_TYPES as readonly string[]).includes(segment.toLowerCase())
@@ -189,7 +189,8 @@ router.get('/:shareType/:key', decodeCookie, async (req, res) => {
           uploadUrl: `${req.baseUrl}/${shareType}/${encodeURIComponent(key)}/upload`,
           maxFileSize: maxFileSize(),
           title: title(resolved.link),
-          askName: askName()
+          askName: askName(),
+          captions: !!captionKey()
         },
         basePath: req.baseUrl,
         galleryLink: gallery && `${gallery}/${shareType}/${encodeURIComponent(key)}`,
