@@ -8,6 +8,9 @@ choose to [review them first](/tag-and-review-uploads#review-uploads-before-they
 > No Immich API key is needed: each file is sent with the share's own key, so Immich itself decides whether that share accepts uploads.
 > 
 > Visitors have no access to Immich; the upload service streams each file through and stores nothing.
+>
+> Optional captions are the one exception: they need an API key and are off by default. See
+> [Add a caption to each photo](/tag-and-review-uploads#add-a-caption-to-each-photo) for what that costs.
 
 ## Contents
 
@@ -51,6 +54,8 @@ What the owner sees in Immich:
   as `ipp_upload_jane-smith,IMG_0042.jpg`, so you can see who sent what and
   [find each visitor's uploads](/tag-and-review-uploads#find-each-visitor-s-uploads). The field can be
   [turned off](/config/upload-service#askname).
+- With [captions](/tag-and-review-uploads#add-a-caption-to-each-photo) turned on, which takes an API key, a
+  visitor's caption becomes the photo's description.
 - The owner removes unwanted files in Immich, like any other photo.
 
 Other visitors see the new photos in the gallery within a few minutes. See

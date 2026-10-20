@@ -19,6 +19,8 @@ export interface UploadNotification {
     asset: { id: string; status: 'created' | 'duplicate' }
     /** The visitor's name as stored in the filename, or empty when none was given. */
     uploader: string
+    /** The visitor's caption, only with the caption layer on and a caption given. */
+    caption?: string
   }
 }
 
@@ -31,7 +33,8 @@ export function buildNotification(
   share: SharedLink,
   file: { name: string; size: number; type: string },
   asset: { id: string; status: 'created' | 'duplicate' },
-  uploader = ''
+  uploader = '',
+  caption?: string
 ): UploadNotification {
   const isAlbum = share.type === AlbumType.album
   const shareTitle = title(share)
@@ -50,7 +53,8 @@ export function buildNotification(
       },
       file,
       asset,
-      uploader
+      uploader,
+      ...(caption && { caption })
     }
   }
 }

@@ -26,7 +26,7 @@ import {
   trustProxyHops,
   unlockHandler
 } from '@ipp/core'
-import { askName, chunkSize, galleryUrl, maxFileSize, uploadNotice } from './config'
+import { askName, captionKey, chunkSize, galleryUrl, maxFileSize, uploadNotice } from './config'
 import { createChunkedReceiver, createChunkedUploads } from './chunked'
 
 const isShareType = (segment: string) =>
@@ -213,7 +213,8 @@ router.get('/:shareType/:key', decodeCookie, async (req, res) => {
           maxFileSize: maxFileSize(),
           chunkSize: chunkBytes,
           title: title(resolved.link),
-          askName: askName()
+          askName: askName(),
+          captions: !!captionKey()
         },
         basePath: req.baseUrl,
         galleryLink: gallery && `${gallery}/${shareType}/${encodeURIComponent(key)}`,

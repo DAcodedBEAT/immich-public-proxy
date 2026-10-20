@@ -92,6 +92,19 @@ The secret that signs the cookie holding a visitor's unlocked share passwords. B
 new one, which signs every visitor out. Set the same long random value on every copy of IPP if you run several
 behind a load balancer, so a visitor stays unlocked whichever copy answers.
 
+## `IMMICH_API_KEY`
+
+**Optional** · **Upload service only**
+
+An Immich API key for the upload service's optional captions. It turns them on only together with
+[`upload.captions`](/config/upload-service#captions) set to `true`; on its own it does nothing, and `upload.captions`
+does nothing without it. IPP never reads this variable. The key must belong to the user who owns the shares and needs
+only the `asset.update` permission. Read
+[Add a caption to each photo](/tag-and-review-uploads#add-a-caption-to-each-photo) before setting it.
+
+Passing the key to the bulk-tag script with `docker exec -e IMMICH_API_KEY=...` sets it for that one command only,
+not for the service. See [Bulk-tag uploads by visitor name](/tag-and-review-uploads#bulk-tag-uploads-by-visitor-name).
+
 ## `NODE_EXTRA_CA_CERTS`
 
 **Optional**
@@ -119,5 +132,5 @@ for the symptoms and the alternatives.
 ## The upload service
 
 The optional upload service reads the same variables, with the same meanings, so the `environment` block can be
-copied across. `PUBLIC_BASE_URL` stays IPP's public URL, which gives the upload page a back button to the gallery.
+copied across. `IMMICH_API_KEY` is the one variable only the upload service reads. `PUBLIC_BASE_URL` stays IPP's public URL, which gives the upload page a back button to the gallery.
 See [Add the upload service](/visitor-uploads#add-the-upload-service).

@@ -17,6 +17,7 @@ import {
   maxFileSize,
   rateLimit
 } from './config'
+import { readCaption, writeCaption } from './caption'
 import { uploaderSlug, uploadFilename } from './filename'
 import { ForwardResult, forwardUpload, IncomingUpload } from './forward'
 import { authoriseUpload, UploadPermit } from './gate'
@@ -73,6 +74,8 @@ export interface Admitted {
   permit: UploadPermit
   filename: string
   uploader: string
+  /** Undefined unless captions are on and the visitor wrote one */
+  caption?: string
   mimeType: string
   fileCreatedAt: string
   fileModifiedAt: string
@@ -139,6 +142,8 @@ export function createUploadAdmission(): Admit {
       return
     }
 
+    const caption = readCaption(req.query)
+
     const mimeType = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase()
     if (!isUploadableType(mimeType) || !isUploadableName(filename)) {
       refuse(res, 415, 'Only photos and videos can be sent')
@@ -167,6 +172,7 @@ export function createUploadAdmission(): Admit {
       permit,
       filename,
       uploader,
+      caption,
       mimeType,
       fileCreatedAt: uploadTimestamp(req.query.fileCreatedAt),
       fileModifiedAt: uploadTimestamp(req.query.fileModifiedAt),
@@ -192,7 +198,7 @@ export function finishUpload(res: Response, admitted: Admitted, result: ForwardR
     return
   }
 
-  const { link, filename, mimeType, uploader } = admitted
+  const { link, permit, filename, mimeType, uploader, caption } = admitted
   log(
     'Received upload ' +
       filename +
@@ -210,9 +216,12 @@ export function finishUpload(res: Response, admitted: Admitted, result: ForwardR
       link,
       { name: filename, size: result.bytes, type: mimeType },
       { id: result.id, status: result.status },
-      uploader
+      uploader,
+      caption
     )
   )
+  // Also after the reply, and only for a new asset: a duplicate's description is the owner's
+  if (caption && result.status === 'created') void writeCaption(permit, result.id, caption)
 }
 
 /** Build the handler for `POST <share>/upload`: one file as one request body. */
