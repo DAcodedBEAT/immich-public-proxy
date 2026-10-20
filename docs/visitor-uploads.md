@@ -37,6 +37,8 @@ read-only.
 1. In Immich, the owner turns on **Allow public user to upload** for a shared link. The gallery for that share then
    shows an **Add photos** button.
 2. A visitor clicks the button. It opens the upload page for the same share on the upload service's separate container.
+   The photos and videos they choose or drop are listed with thumbnails, so they can remove a wrong pick or add more,
+   and nothing is sent until they press **Upload**. The optional name field is on the same list.
 3. The upload container streams the file straight to Immich with the share's own key. It stores nothing and holds no API key.
 4. Immich checks that the share still allows uploads, stores the file as if the share owner had uploaded it, and adds
    it to the share.

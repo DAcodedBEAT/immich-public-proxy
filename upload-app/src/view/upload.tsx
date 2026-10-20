@@ -1,5 +1,5 @@
 import { jsonForInlineScript, ThemeScript } from '@ipp/core'
-import { ICON_ARROW_LEFT, ICON_CLOUD_UPLOAD } from '../shared/icons'
+import { ICON_ARROW_LEFT, ICON_CLOSE, ICON_CLOUD_UPLOAD, ICON_PLUS } from '../shared/icons'
 import { CAPTION_MAX_LENGTH, UPLOAD_ACCEPT, UploadPageConfig } from '../shared/upload'
 import { ASSET_VERSION } from '../version'
 
@@ -13,9 +13,25 @@ export interface UploadPageProps {
   notice: string
 }
 
+/** The visitor's optional name, from `ipp.upload.askName`, stored in each filename. */
+function NameField() {
+  return (
+    <label class='upload-name'>
+      <span class='upload-name-label'>Your name</span>
+      <input
+        id='upload-name'
+        type='text'
+        maxLength={64}
+        autocomplete='name'
+        placeholder='Optional'
+      />
+    </label>
+  )
+}
+
 /**
- * A caption for the files the visitor sends next, written as each new
- * photo's description. Only rendered with the caption layer on; see `caption.ts`.
+ * A caption for the files in the review sheet, written as each new photo's
+ * description. Only rendered with the caption layer on; see `caption.ts`.
  */
 function CaptionField() {
   return (
@@ -25,9 +41,66 @@ function CaptionField() {
         id='upload-caption'
         rows={2}
         maxLength={CAPTION_MAX_LENGTH}
-        placeholder='Optional. Shown with each photo you send next.'
+        placeholder='Optional. Shown with each of these photos.'
       />
     </label>
+  )
+}
+
+/**
+ * The review sheet: files chosen or dropped are listed here, with a
+ * thumbnail and a remove button, and only sent once the visitor confirms.
+ * The name field and the caption box, when the page has them, are part of
+ * it. The client fills the list.
+ */
+function ReviewSheet({ config }: { config: UploadPageConfig }) {
+  return (
+    <div id='upload-review' class='upload-review' hidden>
+      <div
+        class='upload-review-panel'
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='upload-review-title'
+      >
+        <div class='upload-review-header'>
+          <h2 id='upload-review-title'>Send these photos?</h2>
+          <button
+            id='upload-review-close'
+            type='button'
+            class='upload-row-action'
+            title='Cancel'
+            aria-label='Cancel'
+          >
+            <Icon path={ICON_CLOSE} />
+          </button>
+        </div>
+        <p id='upload-review-summary' aria-live='polite'></p>
+        <ul id='upload-review-list' aria-label='Chosen files'></ul>
+        {(config.askName || config.captions) && (
+          <div class='upload-review-fields'>
+            {config.askName && <NameField />}
+            {config.captions && <CaptionField />}
+          </div>
+        )}
+        <div class='upload-review-footer'>
+          <button id='upload-review-add' type='button' class='upload-button'>
+            <Icon path={ICON_PLUS} />
+            Add more
+          </button>
+          <span class='upload-review-spacer'></span>
+          <button id='upload-review-cancel' type='button' class='upload-button'>
+            Cancel
+          </button>
+          <button
+            id='upload-review-submit'
+            type='button'
+            class='upload-button upload-button-primary'
+          >
+            Upload
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -76,19 +149,6 @@ export function UploadPage({ config, basePath, galleryLink, notice }: UploadPage
           </div>
         </header>
         <main id='upload-main'>
-          {config.askName && (
-            <label class='upload-name'>
-              <span class='upload-name-label'>Your name</span>
-              <input
-                id='upload-name'
-                type='text'
-                maxLength={64}
-                autocomplete='name'
-                placeholder='Optional'
-              />
-            </label>
-          )}
-          {config.captions && <CaptionField />}
           <button id='upload-choose' type='button' class='upload-placeholder'>
             <Icon path={ICON_CLOUD_UPLOAD} class='upload-placeholder-icon' />
             <span class='upload-placeholder-title'>Add photos</span>
@@ -104,6 +164,7 @@ export function UploadPage({ config, basePath, galleryLink, notice }: UploadPage
             <ul id='upload-list'></ul>
           </section>
         </main>
+        <ReviewSheet config={config} />
         <div id='upload-drop' hidden>
           <Icon path={ICON_CLOUD_UPLOAD} class='upload-drop-icon' />
           <p>Drop files to upload</p>
