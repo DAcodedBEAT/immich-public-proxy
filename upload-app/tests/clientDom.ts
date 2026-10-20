@@ -3,7 +3,7 @@ import { vi } from 'vitest'
 import { h } from 'preact'
 import { renderPage } from '@ipp/core'
 import type { UploadPageConfig } from '../src/shared/upload'
-import { UploadPage } from '../src/view/upload'
+import { UploadPage, type UploadPageProps } from '../src/view/upload'
 
 /*
   Helpers for the page client's tests, which run under jsdom. The document is
@@ -14,8 +14,11 @@ import { UploadPage } from '../src/view/upload'
 
 const UPLOAD_URL = '/share/testkey/upload'
 
-/** Render the upload page with `config` into the jsdom document. */
-export function renderUploadPage(config: Partial<UploadPageConfig> = {}) {
+/** Render the upload page with `config`, and any other page props, into the jsdom document. */
+export function renderUploadPage(
+  config: Partial<UploadPageConfig> = {},
+  page: Partial<Omit<UploadPageProps, 'config'>> = {}
+) {
   const html = renderPage(
     h(UploadPage, {
       config: {
@@ -27,7 +30,8 @@ export function renderUploadPage(config: Partial<UploadPageConfig> = {}) {
         ...config
       },
       basePath: '',
-      notice: ''
+      notice: '',
+      ...page
     })
   )
   const parsed = new DOMParser().parseFromString(html, 'text/html')
@@ -49,6 +53,58 @@ export function chooseFiles(files: File[]) {
   const input = document.getElementById('upload-input') as HTMLInputElement
   Object.defineProperty(input, 'files', { value: files, configurable: true })
   input.dispatchEvent(new Event('change'))
+}
+
+/** Confirm the review sheet, which hands its files to the upload queue. */
+export function submitReview() {
+  click(document.getElementById('upload-review-submit'))
+}
+
+/** Pick files and confirm them in the review sheet at once. */
+export function chooseAndSubmit(files: File[]) {
+  chooseFiles(files)
+  submitReview()
+}
+
+/** A drag event carrying files, as a browser dispatches it on the window. */
+export function dragEvent(type: string, files: File[] = []): Event {
+  const event = new Event(type, { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'dataTransfer', { value: { types: ['Files'], files } })
+  return event
+}
+
+export function click(el: Element | null) {
+  if (!el) throw new Error('nothing to click')
+  el.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+}
+
+/**
+ * jsdom has no object URLs. Stand-ins that hand out numbered `blob:` URLs and
+ * record which are still live, so a test can check every one is revoked.
+ */
+export function stubObjectUrls() {
+  const live = new Set<string>()
+  let next = 0
+  const created = vi.fn((_blob: Blob) => {
+    const url = 'blob:test/' + ++next
+    live.add(url)
+    return url
+  })
+  const revoked = vi.fn((url: string) => {
+    live.delete(url)
+  })
+  const saved = { create: URL.createObjectURL, revoke: URL.revokeObjectURL }
+  URL.createObjectURL = created
+  URL.revokeObjectURL = revoked
+  return {
+    created,
+    revoked,
+    live,
+    restore() {
+      URL.createObjectURL = saved.create
+      URL.revokeObjectURL = saved.revoke
+    }
+  }
 }
 
 type Outcome = { status: number; body?: unknown; headers?: Record<string, string> }

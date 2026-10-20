@@ -1,10 +1,12 @@
 // The upload page: the placeholder button and dropping files on the page
-// feed one queue. Each file is its own request, so one failure is one file.
+// open a review sheet, and the files the visitor confirms there join one
+// queue. Each file is its own request, so one failure is one file.
 // The panel follows Immich's own upload panel: summary lines, then one row
 // per file with a status icon, a progress bar while sending, and the error.
 //
 // Nothing here reads a file's contents; the bytes go straight from the File
-// to the request body.
+// to the request body. The review sheet's thumbnails are object URLs the
+// browser decodes itself, each revoked when its file leaves the sheet.
 
 import { createLimiter } from '../shared/limiter.js'
 import { fileType, formatSize, isUploadableName, isUploadableType } from '../shared/upload.js'
@@ -14,8 +16,10 @@ import {
   ICON_CHECK_CIRCLE,
   ICON_CIRCLE_OUTLINE,
   ICON_CLOSE,
+  ICON_IMAGE,
   ICON_LOADING,
   ICON_RESTART,
+  ICON_VIDEO,
   iconSvg
 } from '../shared/icons.js'
 
@@ -52,7 +56,8 @@ const STATE_ICONS: Record<RowState, string> = {
 interface UploadRow {
   file: File
   type: string
-  /** The caption the file was queued with, when the page has a caption box and it was filled in. */
+  /** The name and caption the file was queued with, when the page has the fields and they were filled in. */
+  uploader?: string
   caption?: string
   li: HTMLLIElement
   icon: HTMLElement
@@ -158,7 +163,7 @@ function finish(
 }
 
 /** Build the panel row for one file: status icon, name, and its button. */
-function addRow(file: File, type: string, caption?: string): UploadRow {
+function addRow(file: File, type: string, batch: Batch): UploadRow {
   const li = document.createElement('li')
   li.className = 'upload-row'
   const line = document.createElement('div')
@@ -175,7 +180,7 @@ function addRow(file: File, type: string, caption?: string): UploadRow {
   li.appendChild(line)
   listEl.appendChild(li)
 
-  const row: UploadRow = { file, type, caption, li, icon, action, cancelled: false }
+  const row: UploadRow = { file, type, ...batch, li, icon, action, cancelled: false }
   setState(row, 'pending')
   setAction(row, 'cancel')
   action.addEventListener('click', () => {
@@ -235,9 +240,7 @@ function attempt(row: UploadRow, attemptNumber: number): Promise<Attempt> {
       fileCreatedAt: timestamp,
       fileModifiedAt: timestamp
     })
-    // Read when the file is sent, so a name typed after choosing the files still counts
-    const uploader = nameEl?.value.trim()
-    if (uploader) query.set('uploader', uploader)
+    if (row.uploader) query.set('uploader', row.uploader)
     if (row.caption) query.set('caption', row.caption)
     const xhr = new XMLHttpRequest()
     row.xhr = xhr
@@ -337,26 +340,218 @@ function queue(row: UploadRow) {
   })
 }
 
+/** Why the server would refuse this file, or undefined when it would take it. */
+function refusal(file: File, type: string): string | undefined {
+  if (!isUploadableType(type) || !isUploadableName(file.name))
+    return 'Only photos and videos can be sent'
+  if (file.size > config.maxFileSize)
+    return 'Larger than the ' + formatSize(config.maxFileSize) + ' limit'
+  return undefined
+}
+
+/** What every file of one confirmed batch is sent with. */
+interface Batch {
+  uploader?: string
+  caption?: string
+}
+
 /** Queue files. Anything the server would refuse anyway is refused here, before it costs the visitor's uplink. */
-function queueFiles(files: File[]) {
+function queueFiles(files: File[], batch: Batch) {
   if (!files.length) return
   startBatchIfIdle()
   panelEl.hidden = false
-  // Read once per batch, so a retry sends what the file was queued with
-  const caption = captionEl?.value.trim() || undefined
   for (const file of files) {
     const type = fileType(file.name, file.type)
-    const row = addRow(file, type, caption)
+    const row = addRow(file, type, batch)
     stats.total++
-    if (!isUploadableType(type) || !isUploadableName(file.name)) {
-      finish(row, 'error', 'Only photos and videos can be sent')
-    } else if (file.size > config.maxFileSize) {
-      finish(row, 'error', 'Larger than the ' + formatSize(config.maxFileSize) + ' limit')
-    } else {
-      queue(row)
-    }
+    const reason = refusal(file, type)
+    if (reason) finish(row, 'error', reason)
+    else queue(row)
   }
   updateSummary()
+}
+
+/*
+  The review sheet. Choosing or dropping files lists them here first, with a
+  thumbnail, so the visitor can drop a wrong pick or add more before
+  anything is sent. Only Upload hands the files to the queue above.
+*/
+
+const sheetEl = document.getElementById('upload-review') as HTMLElement
+const sheetListEl = document.getElementById('upload-review-list') as HTMLElement
+const sheetSummaryEl = document.getElementById('upload-review-summary') as HTMLElement
+const submitEl = document.getElementById('upload-review-submit') as HTMLButtonElement
+const chooseEl = document.getElementById('upload-choose') as HTMLButtonElement
+// The page behind the sheet, made inert while it is open so focus stays in the sheet
+const behindSheet = [document.getElementById('header'), document.getElementById('upload-main')]
+
+interface Reviewed {
+  file: File
+  type: string
+  /** Why it will not be sent, shown on its row; such a file is listed but never queued. */
+  refusal?: string
+  li: HTMLLIElement
+  /** Object URL of the thumbnail, revoked when the file leaves the sheet. */
+  thumbUrl?: string
+}
+
+let reviewed: Reviewed[] = []
+
+function revokeThumb(item: Reviewed) {
+  if (!item.thumbUrl) return
+  URL.revokeObjectURL(item.thumbUrl)
+  item.thumbUrl = undefined
+}
+
+function placeholder(icon: string): HTMLElement {
+  const span = document.createElement('span')
+  span.className = 'upload-review-thumb-placeholder'
+  span.innerHTML = iconSvg(icon)
+  return span
+}
+
+/**
+ * A thumbnail for a photo the browser can decode; an icon for a video, a
+ * refused file, or a photo it cannot (HEIC outside Safari, RAW).
+ */
+function thumbnail(item: Reviewed): HTMLElement {
+  if (item.refusal || !item.type.startsWith('image/'))
+    return placeholder(item.type.startsWith('video/') ? ICON_VIDEO : ICON_IMAGE)
+  const img = document.createElement('img')
+  img.alt = ''
+  item.thumbUrl = URL.createObjectURL(item.file)
+  img.src = item.thumbUrl
+  img.addEventListener('error', () => {
+    revokeThumb(item)
+    img.replaceWith(placeholder(ICON_IMAGE))
+  })
+  return img
+}
+
+function sendable(): Reviewed[] {
+  return reviewed.filter(item => !item.refusal)
+}
+
+function updateSheet() {
+  const ready = sendable()
+  const refused = reviewed.length - ready.length
+  const bytes = ready.reduce((sum, item) => sum + item.file.size, 0)
+  sheetSummaryEl.textContent =
+    `${ready.length} ${ready.length === 1 ? 'file' : 'files'}, ${formatSize(bytes)}` +
+    (refused ? ` - ${refused} cannot be sent` : '')
+  submitEl.textContent = ready.length ? 'Upload ' + ready.length : 'Upload'
+  submitEl.disabled = ready.length === 0
+}
+
+function removeFromSheet(item: Reviewed) {
+  revokeThumb(item)
+  item.li.remove()
+  reviewed = reviewed.filter(other => other !== item)
+  updateSheet()
+  // Keep focus in the sheet once the button that had it is gone
+  const next = sheetListEl.querySelector<HTMLButtonElement>('.upload-review-remove')
+  ;(next || submitEl).focus()
+}
+
+/** Two picks of the same file are one file. */
+function fileIdentity(file: File): string {
+  return [file.name, file.size, file.lastModified].join('|')
+}
+
+/** List files in the sheet, skipping any already listed. */
+function addToSheet(files: File[]) {
+  const listed = new Set(reviewed.map(item => fileIdentity(item.file)))
+  for (const file of files) {
+    if (listed.has(fileIdentity(file))) continue
+    listed.add(fileIdentity(file))
+    const type = fileType(file.name, file.type)
+    const li = document.createElement('li')
+    li.className = 'upload-review-row'
+    const item: Reviewed = { file, type, refusal: refusal(file, type), li }
+
+    const thumb = document.createElement('span')
+    thumb.className = 'upload-review-thumb'
+    thumb.appendChild(thumbnail(item))
+    const text = document.createElement('span')
+    text.className = 'upload-review-text'
+    const name = document.createElement('span')
+    name.className = 'upload-review-name'
+    name.textContent = file.name
+    const detail = document.createElement('span')
+    detail.className = 'upload-review-detail'
+    detail.textContent = formatSize(file.size)
+    text.append(name, detail)
+    if (item.refusal) {
+      li.dataset.refused = ''
+      const reason = document.createElement('span')
+      reason.className = 'upload-row-error'
+      reason.textContent = item.refusal
+      text.appendChild(reason)
+    }
+    const remove = document.createElement('button')
+    remove.type = 'button'
+    remove.className = 'upload-row-action upload-review-remove'
+    remove.title = 'Remove'
+    remove.setAttribute('aria-label', 'Remove ' + file.name)
+    remove.innerHTML = iconSvg(ICON_CLOSE)
+    remove.addEventListener('click', () => removeFromSheet(item))
+
+    li.append(thumb, text, remove)
+    sheetListEl.appendChild(li)
+    reviewed.push(item)
+  }
+  updateSheet()
+}
+
+function onSheetKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeSheet()
+  }
+}
+
+/** Show files for review, opening the sheet or adding to it. */
+function review(files: File[]) {
+  if (!files.length) return
+  const opening = sheetEl.hidden
+  if (opening) {
+    sheetEl.hidden = false
+    document.body.classList.add('upload-review-open')
+    for (const el of behindSheet) el?.setAttribute('inert', '')
+    document.addEventListener('keydown', onSheetKeydown)
+  }
+  addToSheet(files)
+  if (opening) submitEl.focus()
+}
+
+/** Close the sheet, releasing every thumbnail. Its files are forgotten unless they were just queued. */
+function closeSheet() {
+  for (const item of reviewed) revokeThumb(item)
+  reviewed = []
+  sheetListEl.replaceChildren()
+  sheetEl.hidden = true
+  document.body.classList.remove('upload-review-open')
+  for (const el of behindSheet) el?.removeAttribute('inert')
+  document.removeEventListener('keydown', onSheetKeydown)
+  chooseEl.focus()
+}
+
+/**
+ * Queue the files the sheet can send and close it. The name and caption are
+ * read here, once per batch, so a retry sends what the file was queued with
+ * and a name changed for a later batch never reaches files still sending.
+ */
+function submitSheet() {
+  const files = sendable().map(item => item.file)
+  if (!files.length) return
+  const batch: Batch = {
+    uploader: nameEl?.value.trim() || undefined,
+    caption: captionEl?.value.trim() || undefined
+  }
+  // The caption belongs to this batch; the name is kept for the next
+  if (captionEl) captionEl.value = ''
+  closeSheet()
+  queueFiles(files, batch)
 }
 
 /**
@@ -387,7 +582,7 @@ function setupDragAndDrop() {
     if (!carriesFiles(e)) return
     e.preventDefault()
     hide()
-    queueFiles(Array.from(e.dataTransfer?.files || []))
+    review(Array.from(e.dataTransfer?.files || []))
   })
 }
 
@@ -410,9 +605,13 @@ if (nameEl) {
 }
 
 const input = document.getElementById('upload-input') as HTMLInputElement
-document.getElementById('upload-choose')?.addEventListener('click', () => input.click())
+chooseEl.addEventListener('click', () => input.click())
+document.getElementById('upload-review-add')?.addEventListener('click', () => input.click())
+document.getElementById('upload-review-cancel')?.addEventListener('click', closeSheet)
+document.getElementById('upload-review-close')?.addEventListener('click', closeSheet)
+submitEl.addEventListener('click', submitSheet)
 input.addEventListener('change', () => {
-  queueFiles(Array.from(input.files || []))
+  review(Array.from(input.files || []))
   // So picking the same file again still fires `change`
   input.value = ''
 })
