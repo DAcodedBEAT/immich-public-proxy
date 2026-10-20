@@ -11,6 +11,7 @@
       "notice": "Uploaded photos may not appear in the gallery immediately.",
       "askName": true,
       "fieldSeparator": ",",
+      "captions": false,
       "notifyUrl": "",
       "notifyHeaders": {},
       "notifyTimeout": 10000

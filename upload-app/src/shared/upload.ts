@@ -88,7 +88,16 @@ export interface UploadPageConfig {
   title: string
   /** Whether the page has a name field, sent with each file as `uploader`. */
   askName: boolean
+  /**
+   * Whether the page has a caption box, sent with each file as `caption` and
+   * written as the description of each new asset. True only with both
+   * `ipp.upload.captions` and `IMMICH_API_KEY` set.
+   */
+  captions: boolean
 }
+
+/** Longest caption the server keeps; the page's caption box stops there too. */
+export const CAPTION_MAX_LENGTH = 500
 
 /** Success body of `POST <share>/upload`. */
 export interface UploadResponse {
