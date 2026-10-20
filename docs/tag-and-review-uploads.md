@@ -133,10 +133,10 @@ check the dry-run list before you use `--apply`.
 > This is opt-in, and it gives up the upload service's main safety property: that it holds no API key. Leave it off
 > unless you want visitors' captions in Immich.
 
-With captions on, the upload page has a caption box beside the name field. The visitor writes one caption for the
-files they send next, and once Immich has stored each new file, the upload service writes the caption as that
-photo's description, shown in its info panel in Immich. The visitor's name is not repeated there: it is already in
-the [filename](#find-each-visitor-s-uploads).
+With captions on, the list of chosen files the visitor reviews before sending has a caption box beside the name
+field. The visitor writes one caption for the files on that list, and once Immich has stored each new file, the
+upload service writes the caption as that photo's description, shown in its info panel in Immich. The visitor's name
+is not repeated there: it is already in the [filename](#find-each-visitor-s-uploads).
 
 - A caption replaces any description Immich read from the photo's own metadata, such as an EXIF image description
   set by the camera or an editing app.

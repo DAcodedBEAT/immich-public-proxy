@@ -133,7 +133,7 @@ a description takes an Immich API key, so captions need two steps: this option s
 one missing, the page has no caption box, a caption sent anyway is ignored, and the service holds no key and makes no
 call beyond the upload itself.
 
-The visitor writes one caption for the files they send next. After Immich has stored a new file and the visitor has
+The visitor writes one caption for the files they are about to send. After Immich has stored a new file and the visitor has
 had their answer, the service sets the caption as that photo's description. A file Immich already had (a duplicate)
 is left alone. A failure is logged and never fails the upload. Read
 [Add a caption to each photo](/tag-and-review-uploads#add-a-caption-to-each-photo) before turning it on.
