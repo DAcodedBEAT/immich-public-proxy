@@ -32,6 +32,7 @@ const config = JSON.parse(
 const run = createLimiter(CONCURRENT_UPLOADS)
 
 const nameEl = document.getElementById('upload-name') as HTMLInputElement | null
+const captionEl = document.getElementById('upload-caption') as HTMLTextAreaElement | null
 const panelEl = document.getElementById('upload-panel') as HTMLElement
 const progressEl = document.getElementById('upload-progress') as HTMLElement
 const countsEl = document.getElementById('upload-counts') as HTMLElement
@@ -51,6 +52,8 @@ const STATE_ICONS: Record<RowState, string> = {
 interface UploadRow {
   file: File
   type: string
+  /** The caption the file was queued with, when the page has a caption box and it was filled in. */
+  caption?: string
   li: HTMLLIElement
   icon: HTMLElement
   action: HTMLButtonElement
@@ -155,7 +158,7 @@ function finish(
 }
 
 /** Build the panel row for one file: status icon, name, and its button. */
-function addRow(file: File, type: string): UploadRow {
+function addRow(file: File, type: string, caption?: string): UploadRow {
   const li = document.createElement('li')
   li.className = 'upload-row'
   const line = document.createElement('div')
@@ -172,7 +175,7 @@ function addRow(file: File, type: string): UploadRow {
   li.appendChild(line)
   listEl.appendChild(li)
 
-  const row: UploadRow = { file, type, li, icon, action, cancelled: false }
+  const row: UploadRow = { file, type, caption, li, icon, action, cancelled: false }
   setState(row, 'pending')
   setAction(row, 'cancel')
   action.addEventListener('click', () => {
@@ -235,6 +238,7 @@ function attempt(row: UploadRow, attemptNumber: number): Promise<Attempt> {
     // Read when the file is sent, so a name typed after choosing the files still counts
     const uploader = nameEl?.value.trim()
     if (uploader) query.set('uploader', uploader)
+    if (row.caption) query.set('caption', row.caption)
     const xhr = new XMLHttpRequest()
     row.xhr = xhr
     const started = Date.now()
@@ -338,9 +342,11 @@ function queueFiles(files: File[]) {
   if (!files.length) return
   startBatchIfIdle()
   panelEl.hidden = false
+  // Read once per batch, so a retry sends what the file was queued with
+  const caption = captionEl?.value.trim() || undefined
   for (const file of files) {
     const type = fileType(file.name, file.type)
-    const row = addRow(file, type)
+    const row = addRow(file, type, caption)
     stats.total++
     if (!isUploadableType(type) || !isUploadableName(file.name)) {
       finish(row, 'error', 'Only photos and videos can be sent')

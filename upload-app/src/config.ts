@@ -57,6 +57,17 @@ export function uploadNotice(): string {
   return typeof configured === 'string' ? configured : ''
 }
 
+/**
+ * The API key for the caption layer, or undefined while it is off. It takes
+ * two deliberate steps: `ipp.upload.captions` set to `true` in config, and
+ * `IMMICH_API_KEY` in the service's environment. Either one alone changes
+ * nothing, so a key set for the bulk-tag script never turns captions on.
+ */
+export function captionKey(): string | undefined {
+  if (getConfigOption('ipp.upload.captions', false) !== true) return undefined
+  return process.env.IMMICH_API_KEY || undefined
+}
+
 /** Notification webhook settings from `ipp.upload.notify*`, or undefined when no URL is set. */
 export function notifyConfig():
   | { url: string; headers: Record<string, string>; timeoutMs: number }

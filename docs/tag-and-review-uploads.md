@@ -1,7 +1,8 @@
 # Tag and review visitor uploads
 
 Immich workflows can act on each photo a visitor sends: tag it, copy it into a second album, or hold it back from the
-gallery until you approve it.
+gallery until you approve it. If you accept giving the upload service an API key, it can also write a visitor's
+caption into each photo's description.
 
 This guide assumes visitor uploads are already [set up](/visitor-uploads).
 
@@ -20,7 +21,8 @@ visitor's filename unchanged. In Immich, open **Workflows** and create a workflo
 
 IPP talks to Immich with the visitor's share key and nothing else. Immich lets a share key do exactly one write:
 store a file into the share. Every tag endpoint needs an API key with tag permissions. The upload service holds no
-API key, and giving one to a service that faces the public would let that service change your library.
+API key, and giving one to a service that faces the public would let that service change your library. The one
+exception is opt-in: [captions](#add-a-caption-to-each-photo), which need a key with `asset.update` only.
 
 A sidecar file could carry a tag without an API key, but Immich reads a sidecar's keywords in place of the
 photo's own, so a visitor's existing keywords would be lost. The filename keeps the photo's metadata untouched.
@@ -67,7 +69,9 @@ uploaded yesterday or months ago.
 
 Adding a tag is something a share key cannot do, so the script needs an Immich API key. You pass the key to the one
 command that runs the script, and nothing else. The upload service itself still holds no key, as described in
-[Why IPP marks the filename](#why-ipp-marks-the-filename-instead-of-tagging).
+[Why IPP marks the filename](#why-ipp-marks-the-filename-instead-of-tagging). A key passed with `docker exec -e` lives
+only as long as that one command, so it never turns on [captions](#add-a-caption-to-each-photo), and turning captions
+on does not change how you run the script.
 
 ### Run the script
 
@@ -122,6 +126,78 @@ IPP 4.0.0 kept a comma in the visitor's own filename, so a file such as `ipp_upl
 write, such as one with capitals or spaces, or when the text after it starts with a space, and lists each file it
 skips. A 4.0.0 file named `ipp_upload_venice,italy.jpg` cannot be told apart from a visitor called `venice`, so
 check the dry-run list before you use `--apply`.
+
+## Add a caption to each photo
+
+> [!WARNING]
+> This is opt-in, and it gives up the upload service's main safety property: that it holds no API key. Leave it off
+> unless you want visitors' captions in Immich.
+
+With captions on, the upload page has a caption box beside the name field. The visitor writes one caption for the
+files they send next, and once Immich has stored each new file, the upload service writes the caption as that
+photo's description, shown in its info panel in Immich. The visitor's name is not repeated there: it is already in
+the [filename](#find-each-visitor-s-uploads).
+
+- A caption replaces any description Immich read from the photo's own metadata, such as an EXIF image description
+  set by the camera or an editing app.
+- A file Immich already had (a duplicate) is left alone, so a description you wrote is never replaced.
+- Control characters and invisible or text-direction characters are removed, and the caption is cut to 500
+  characters.
+- The caption also appears in the [notification](/config/upload-service#notifyurl), if you have one.
+- Writing the description happens after the visitor has had their answer. A failure is logged and never fails the
+  upload.
+
+### Turn captions on
+
+Captions take two deliberate steps. Either one alone changes nothing: the page has no caption box and the service
+makes no call beyond the upload itself.
+
+1. **Create an API key.** In Immich, sign in as the user who owns the shares that accept uploads, open
+   **Account Settings**, then **API Keys**, and create a key with only the `asset.update` permission. Visitor uploads
+   belong to the share's owner, and Immich only lets an asset's owner change its description, so a key of any other
+   user cannot caption them. This has not been checked against every Immich version; if captions do not appear, look
+   for a warning in the upload container's log.
+2. **Set both on the upload service**, not on IPP, and restart it:
+
+   ```json
+   {
+     "ipp": {
+       "upload": {
+         "captions": true
+       }
+     }
+   }
+   ```
+
+   ```yaml
+       environment:
+         IMMICH_URL: http://your-internal-immich-server:2283
+         PUBLIC_BASE_URL: https://photos.example.com
+         IMMICH_API_KEY: your-api-key
+   ```
+
+If the key lacks `asset.update`, the first refusal logs one warning that names it, and the service stops trying
+until it restarts. Uploads never fail because of the key.
+
+Setting `IMMICH_API_KEY` in the container's environment for the [bulk-tag script](#bulk-tag-uploads-by-visitor-name)
+does not turn captions on unless [`upload.captions`](/config/upload-service#captions) is also `true`, and
+`upload.captions` does nothing without the key. Running the script with `docker exec -e IMMICH_API_KEY=...` works
+the same either way.
+
+### What the key can do
+
+The service only uses the key to set the description of a photo a visitor has just uploaded through a share that
+allows uploads. But anyone who takes the key from the container, or takes over the service, can rewrite the
+description of **every** photo of the user who owns it. To keep that small:
+
+- Give the key only `asset.update`. Never `all`.
+- Consider a dedicated Immich user for the shares that accept uploads, with its albums shared to your own account,
+  so the key reaches only that user's photos.
+- Keep the container locked down as in the [compose example](/visitor-uploads#add-the-upload-service), and keep the
+  key in an `.env` file or a Docker secret out of version control.
+
+To turn captions off, set `upload.captions` to `false` or remove `IMMICH_API_KEY`, restart the upload service, and
+delete the key in Immich.
 
 ## Review uploads before they appear
 
