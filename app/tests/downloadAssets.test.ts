@@ -218,7 +218,7 @@ describe('downloadAssets', () => {
     if (!res.writableFinished) await once(res, 'finish')
     expect(counter.pulled).toBe(total)
     // The lead is bounded by the stream buffers between the fetch body and
-    // the response: archiver and zip-stream each hold up to 1 MB per side,
+    // the response: the zip stream and compress-commons each hold up to 1 MB per side,
     // so roughly 4 MB in total. Without backpressure it would approach the
     // whole 32 MB.
     expect(worstLead).toBeLessThan(8 * 1024 * 1024)
@@ -244,7 +244,7 @@ describe('downloadAssets', () => {
   }, 10_000)
 
   it('resolves when the client aborts while the zip is streaming', async () => {
-    // Large enough that archiver can't flush everything into a destroyed
+    // Large enough that the zip stream can't flush everything into a destroyed
     // response; without disconnect handling finalize() would hang forever.
     vi.stubGlobal('fetch', instantFetch(5 * 1024 * 1024))
     const res = new FakeRes()

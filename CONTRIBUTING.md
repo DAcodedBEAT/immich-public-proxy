@@ -122,7 +122,7 @@ The server tsconfig excludes `src/client/`; the client tsconfig only includes `s
 - **Preact** with `preact-render-to-string` for SSR-only templates. No client-side Preact.
 - **PhotoSwipe v5** for the lightbox (vendored under `app/public/photoswipe/`).
 - **thumbhash** for low-res placeholders (vendored).
-- **archiver** for streaming "download all" zips.
+- **zip-stream** for streaming "download all" zips.
 - **cookie-session** for password-protected share sessions.
 - **tsx** for running the server in dev with watch + ESM-native imports.
 - **concurrently** to run the server and client tsc watchers side-by-side in dev.
@@ -184,7 +184,7 @@ Beyond unit tests, exercise the gallery end-to-end against a real Immich instanc
 
 **PhotoSwipe UI.** Custom toolbar buttons, captions, and panels are registered through `lightbox.pswp.ui.registerElement`. The back button, download, fullscreen, and caption registrations live in `app/src/client/lightbox-ui.ts`; the info sidebar (a substantial UI element) lives in `app/src/client/sidebar.ts`. New small registrations join `lightbox-ui.ts`; anything panel-sized gets its own file.
 
-**Streaming.** Assets are streamed from Immich to the client without buffering to disk. Keep it that way. The `archiver` zip flow is also fully streamed (with per-asset retry, an idle-timeout transform, and abort-on-failure semantics).
+**Streaming.** Assets are streamed from Immich to the client without buffering to disk. Keep it that way. The `zip-stream` zip flow is also fully streamed (with per-asset retry, an idle-timeout transform, and abort-on-failure semantics).
 
 **File organisation.** Group functions by cohesion, not by file count. A file deserves its own name when it carries a coherent concept worth a separate filename - "filename sanitization" or "config loader" pass; "narrow unknown to string" does not. When several small helpers share a theme, group them in one file (`utils/text.ts` for escaping + narrowing; `share.ts` for share-level info + policy). When a single concern is substantial enough to dominate a file on its own, give it its own name (`stream/download.ts`). IPP optimises for audit reading rather than tree-shakeable reuse, so fewer cohesive files beat many one-export micro-modules. Same lens applies on the client (`app/src/client/`): each module is a viewport-of-code that earns its name.
 

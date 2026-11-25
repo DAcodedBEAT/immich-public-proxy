@@ -9,7 +9,8 @@ import {
 } from '@ipp/core'
 import { assetFetchUrl, authHeadersForAsset } from '../immich/assets'
 import { Response } from 'express-serve-static-core'
-import type { Archiver } from 'archiver' with { 'resolution-mode': 'import' }
+import type ZipStream from 'zip-stream' with { 'resolution-mode': 'import' }
+import { finished } from 'stream/promises'
 import { resolveDownloadEndpoint, ImageEndpoint } from '../gallery/sizing'
 import {
   AssetPosition,
@@ -52,7 +53,7 @@ type FetchOutcome = FetchedAsset | { failure: Failure } | null
  * archive - nothing is staged to disk or held in memory, so a zip of any
  * size needs only a few stream buffers #289.
  *
- * Assets are fetched strictly one at a time. Archiver writes entries
+ * Assets are fetched strictly one at a time. The zip stream writes entries
  * serially anyway, and an unread response body would hold an idle
  * connection open on Immich for as long as the current entry takes to reach
  * the visitor - long enough for a reverse proxy to close it. The cost is
@@ -79,11 +80,11 @@ type FetchOutcome = FetchedAsset | { failure: Failure } | null
  * already compressed.
  */
 export async function downloadAssets(res: Response, share: SharedLink, assets: Asset[]) {
-  // archiver 8 is ESM-only; this build is CommonJS, so it has to be imported dynamically.
-  const { ZipArchive } = await import('archiver')
-  const archive = new ZipArchive({ store: true })
-  // Without a listener, an archiver 'error' emission would crash the process.
-  archive.on('error', e => log(`Archiver error for share ${share.key}: ${e.message}`))
+  // zip-stream is ESM-only; this build is CommonJS, so it has to be imported dynamically.
+  const { default: Zip } = await import('zip-stream')
+  const archive = new Zip({ store: true })
+  // Without a listener, an 'error' emission would crash the process.
+  archive.on('error', e => log(`Zip error for share ${share.key}: ${e.message}`))
 
   const controller = new AbortController()
   let clientGone = false
@@ -112,7 +113,7 @@ export async function downloadAssets(res: Response, share: SharedLink, assets: A
     if (fetched === null) break // aborted while waiting on Immich
     if ('failure' in fetched) {
       if (!piped) {
-        archive.abort()
+        archive.destroy()
         respondToInvalidRequest(res, 404, describeFailure(share, fetched.failure))
         return
       }
@@ -143,23 +144,24 @@ export async function downloadAssets(res: Response, share: SharedLink, assets: A
   }
   if (!piped) startZipResponse(res, share, archive) // empty selection: still a valid (empty) zip
 
-  // finalize() resolves when archiver has finished writing the zip output.
-  // Raced against client disconnect because finalize() never settles once
-  // the response is destroyed. The inline rejection handler also stops a
-  // late finalize failure becoming an unhandled rejection after a lost race.
-  const finished = archive.finalize().then(
+  // The archive has ended once the central directory is written and read out.
+  // Raced against client disconnect because it never settles once the
+  // response is destroyed. The inline rejection handler also stops a late
+  // failure becoming an unhandled rejection after a lost race.
+  const ended = finished(archive).then(
     () => 'done' as const,
     () => 'error' as const
   )
-  const outcome = await Promise.race([finished, resClosed.then(() => 'closed' as const)])
+  archive.finish()
+  const outcome = await Promise.race([ended, resClosed.then(() => 'closed' as const)])
   if (outcome !== 'done') {
     if (outcome === 'closed') log(`Zip download for share ${share.key} cancelled by client`)
-    // 'error' was already logged by the archiver error listener
+    // 'error' was already logged by the zip error listener
     teardownArchive(archive, res)
   }
 }
 
-function startZipResponse(res: Response, share: SharedLink, archive: Archiver) {
+function startZipResponse(res: Response, share: SharedLink, archive: ZipStream) {
   res.setHeader('Content-Type', 'application/zip')
   res.setHeader(
     'Content-Disposition',
@@ -173,17 +175,17 @@ function startZipResponse(res: Response, share: SharedLink, archive: Archiver) {
 
 /**
  * Pipe one fetched body into the archive and wait for the entry to be fully
- * written (archiver's 'entry' event fires after the data descriptor, which
- * is later than the body's own end).
+ * written (the callback fires after the data descriptor, which is later than
+ * the body's own end).
  *
- * On a body error compress-commons forwards the error to archiver's 'error'
- * event and then moves on to the next queued entry, so the caller must abort
- * the download itself. The body listener covers the tick between append()
- * and archiver attaching its own handler, when an unhandled 'error' would
- * otherwise crash the process.
+ * On a body error compress-commons reports the error to the callback and the
+ * archive's 'error' event, so the caller must abort the download itself. The
+ * body listener covers the tick between entry() and compress-commons
+ * attaching its own handler, when an unhandled 'error' would otherwise crash
+ * the process.
  */
 function appendEntry(
-  archive: Archiver,
+  archive: ZipStream,
   fetched: FetchedAsset
 ): Promise<'done' | { error: unknown }> {
   return new Promise(resolve => {
@@ -193,29 +195,30 @@ function appendEntry(
     }
     const body = readableFromWeb(fetched.response.body)
     const cleanup = () => {
-      archive.off('entry', onEntry)
       archive.off('error', onError)
       body.off('error', onError)
-    }
-    const onEntry = () => {
-      cleanup()
-      resolve('done')
     }
     const onError = (error: unknown) => {
       cleanup()
       resolve({ error })
     }
-    archive.once('entry', onEntry)
     archive.once('error', onError)
     body.once('error', onError)
-    archive.append(body, {
-      name: getFilename(
-        fetched.asset,
-        fetched.endpoint.servedSize,
-        fetched.servedMime,
-        fetched.position
-      )
-    })
+    archive.entry(
+      body,
+      {
+        name: getFilename(
+          fetched.asset,
+          fetched.endpoint.servedSize,
+          fetched.servedMime,
+          fetched.position
+        )
+      },
+      error => {
+        cleanup()
+        resolve(error ? { error } : 'done')
+      }
+    )
   })
 }
 
@@ -229,20 +232,20 @@ function describeFailure(share: SharedLink, failure: Failure): string {
   return `Zip download for share ${share.key}: failed to fetch asset ${failure.asset.id} from ${failure.url} (${detail})`
 }
 
-function abortDownload(archive: Archiver, res: Response, share: SharedLink, failure: Failure) {
+function abortDownload(archive: ZipStream, res: Response, share: SharedLink, failure: Failure) {
   log('Aborting ' + describeFailure(share, failure))
   teardownArchive(archive, res)
 }
 
 /**
- * Tear down an aborted archive so it releases its resources. `abort()` alone
- * is not enough; it kills the queue but leaves any in-flight entry paused,
- * holding its source stream open forever #284
+ * Tear down an aborted archive so it releases its resources. Ending the
+ * archive alone is not enough; an in-flight entry stays paused, holding its
+ * source stream open forever #284
  */
-function teardownArchive(archive: Archiver, res: Response) {
-  archive.abort()
+function teardownArchive(archive: ZipStream, res: Response) {
   archive.unpipe(res)
   res.destroy()
+  archive.destroy()
   archive.resume()
 }
 
